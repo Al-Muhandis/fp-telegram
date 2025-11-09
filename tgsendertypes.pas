@@ -2458,6 +2458,7 @@ begin
       Add(s_ReplyMarkup, ReplyMarkup.Clone);
     Result:=SendMethod(s_editMessageReplyMarkup, sendObj);
   finally
+    Free;
   end;
 end;
 
