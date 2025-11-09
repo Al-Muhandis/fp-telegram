@@ -35,7 +35,8 @@ type
     procedure sendVideo;  
     procedure sendVideoByFileName;
     procedure sendVideoStream;
-    procedure sendPhoto;
+    procedure sendPhoto;   
+    procedure sendPhotoWithInlineKeyboardAndThenEdit;
     procedure sendPhotoByFileName;
     procedure sendMediaGroup;      
     procedure sendMediaGroupByFileName;
@@ -379,6 +380,32 @@ procedure TTestSender.sendPhoto;
 begin
   if not Bot.sendPhoto(ChatID, PhotoUrl, Format(pht_cptn, [Self.ClassName, TestName])) then
     Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.sendPhotoWithInlineKeyboardAndThenEdit;
+var
+  aReplyMarkup: TReplyMarkup;
+  aButtons: TInlineKeyboardButtons;
+  aRespObject: TJSONObject;
+begin
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aButtons:=aReplyMarkup.CreateInlineKeyBoard.Add;
+    aButtons.AddButtonUrl('Github.com',
+      'https://github.com/Al-Muhandis/fp-telegram');
+    aReplyMarkup.InlineKeyBoard.Add.AddButtons(['Button 1', 'Callback data 1', 'Button 2', 'Callback data 2']);
+    if not Bot.sendPhoto(ChatID, PhotoUrl, Format(pht_cptn, [Self.ClassName, TestName]), pmDefault, aReplyMarkup) then
+      Fail('Connection error. See log');
+    if Assigned(Bot.JSONResponse) then
+      aRespObject:=TJSONObject(Bot.JSONResponse);
+    aReplyMarkup.InlineKeyBoard.AddButton('Another button', 'another btn data');
+    Bot.editMessageReplyMarkup(ChatID, aRespObject.Integers['message_id'], '', aReplyMarkup);
+  finally
+    aReplyMarkup.Free;
+  end;
   if Bot.LastErrorCode<>0 then
     Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
       '. Description: '+Bot.LastErrorDescription);
