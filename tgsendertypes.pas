@@ -563,6 +563,8 @@ type
       DisableWebPagePreview: Boolean=False; ReplyMarkup: TReplyMarkup = nil): Boolean; overload;
     function editMessageMediaStream(aStream: TStream; media: TInputMedia; chat_id: Int64; message_id: Int64 = 0;
       inline_message_id: String = ''; ReplyMarkup: TReplyMarkup = nil): Boolean;
+    function editMessageMedia(media: TInputMedia; chat_id: Int64; message_id: Int64 = 0; inline_message_id: String = '';
+      ReplyMarkup: TReplyMarkup = nil): Boolean;
     function copyMessage(chat_id, from_chat_id, message_id: Int64; DisableNotification: Boolean = False;
       ReplyMarkup: TReplyMarkup = nil): Boolean;
     function forwardMessage(chat_id: Int64; from_chat_id: Int64; DisableNotification: Boolean;
@@ -3001,6 +3003,30 @@ begin
     aFileField:=_field;
     aFileName:=_field;
     Result:=SendStream(s_editMessageMedia, aFileField, aFileName, aStream, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.editMessageMedia(media: TInputMedia; chat_id: Int64; message_id: Int64;
+  inline_message_id: String; ReplyMarkup: TReplyMarkup): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    if chat_id<>0 then
+      Add(s_ChatId, chat_id);
+    if message_id<>0 then
+      Add(s_MessageId, message_id);
+    if inline_message_id<>EmptyStr then
+      Add(s_InlineMessageId, inline_message_id);
+    Add(s_Media, media.Clone);
+    if Assigned(ReplyMarkup) then
+      Add(s_ReplyMarkup, ReplyMarkup.Clone); // Clone of ReplyMarkup object will have released with sendObject
+    Result:=SendMethod(s_editMessageMedia, sendObj);
   finally
     Free;
   end;
