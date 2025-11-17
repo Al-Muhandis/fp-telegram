@@ -149,7 +149,7 @@ uses
         UnZip(DownloadFile('https://packages.lazarus-ide.org/' + Path + '.zip'), InstallOPM);
   end;
 
-  function BuildAll(const Dependencies: array of string): string; cdecl;
+  function BuildAll(const Dependencies: array of string): string;
   var
     List: TStringList;
     DT: TDateTime;
