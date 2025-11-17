@@ -87,11 +87,11 @@ uses
     begin
       BuildProject := SelectString(BuildProject, 'Linking').Split(' ')[2].Replace(LineEnding, EmptyStr);
       OutLog(etInfo, #9'to:'#9 + BuildProject);
-      Text := ReadFileToString(Path.Replace('.lpi', '.lpr'));
-      if Text.Contains('program') and Text.Contains('consoletestrunner') then
-        ConsoleTestRunner(BuildProject)
-      else if Text.Contains('library') and Text.Contains('exports') then
-        AddLibrary(BuildProject)
+      // Text := ReadFileToString(Path.Replace('.lpi', '.lpr'));
+      // if Text.Contains('program') and Text.Contains('consoletestrunner') then
+        // ConsoleTestRunner(BuildProject)
+      // else if Text.Contains('library') and Text.Contains('exports') then
+        // AddLibrary(BuildProject)
     end
     else
       OutLog(etError, SelectString(BuildProject, '(Fatal|Error):'));
