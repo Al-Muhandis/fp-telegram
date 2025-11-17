@@ -9,7 +9,6 @@ on:
       - "**"
   pull_request:
     branches:
-      - master
       - main
 
 concurrency:
@@ -34,12 +33,15 @@ jobs:
     - name: Build on Linux
       if: runner.os == 'Linux'
       shell: bash
-      run: bash .github/workflows/make.sh build
+      run: |
+        sudo bash -c 'apt-get update; apt-get install -y lazarus' >/dev/null
+        declare -rx INSTANTFPCOPTIONS='-Fu/usr/lib/lazarus/*/components/lazutils'
+        instantfpc '.github/workflows/make.pas' build
 
     - name: Build on Windows
       if: runner.os == 'Windows'
       shell: powershell
-      run: pwsh -File .github/workflows/make.ps1 build
+      run: pwsh -File .github/workflows/make.ps1
 
     - name: Archive
       if: runner.os == 'Windows'

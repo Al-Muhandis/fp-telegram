@@ -1,8 +1,0 @@
-{
-    "app" : "examples",
-    "lib" : ".",
-    "tst" : "test/console.lprr",
-    "opt" : "-Futest/;",
-    "pkg" : [
-    ]
-}
