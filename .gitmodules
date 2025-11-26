@@ -1,0 +1,3 @@
+[submodule "use/synapse"]
+	path = use/synapse
+	url = git@github.com:geby/synapse.git
