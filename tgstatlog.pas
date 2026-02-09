@@ -27,7 +27,6 @@ Type
     procedure ActivateLog;
     procedure DeActivateLog;
     procedure ActivateFileLog;
-    procedure SetDirectory(AValue: String);
     procedure SetFieldDelimiter(AValue: String);
     procedure SetFilePostfix(AValue: String);
     procedure SetFilePrefix(AValue: String);
@@ -51,7 +50,7 @@ Type
     Property AppendContent : Boolean Read fAppendContent Write fAppendContent;
     Property Active : Boolean Read FActive write SetActive;
     Property DefaultEventType : TEventType Read FDEfaultEventType Write FDefaultEventType;
-    property Directory: String read FDirectory write SetDirectory;
+    property Directory: String read FDirectory write FDirectory;
     property FieldDelimiter: String read FFieldDelimiter write SetFieldDelimiter;
     Property FileName : String Read GetFileName;
     property FilePrefix: String read FFilePrefix write SetFilePrefix;
@@ -205,12 +204,6 @@ begin
   FStream:=TFileStream.Create(AFileName,fFileFlags);
   if fAppendContent then
     FStream.Seek(0,soFromEnd);
-end;
-
-procedure TtgStatLog.SetDirectory(AValue: String);
-begin
-  if FDirectory=AValue then Exit;
-  FDirectory:=AValue;
 end;
 
 procedure TtgStatLog.SetFieldDelimiter(AValue: String);

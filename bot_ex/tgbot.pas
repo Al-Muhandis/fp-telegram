@@ -31,7 +31,7 @@ type
     FStatLogger: TtgStatLog;
     FUserPermissions: TStringList;
     procedure BrowseStatFile(aDate: TDate; var Msg: String; ReplyMarkup: TReplyMarkup; Offset: Integer);
-    procedure CalculateStat4Strings(aStatFile: TStrings; IDs: TIntegerHashSet;
+    class procedure CalculateStat4Strings(aStatFile: TStrings; IDs: TIntegerHashSet;
       var aEvents: Integer);
     procedure DoCallbackQueryStat(ACallbackQuery: TCallbackQueryObj; SendFile: Boolean = False);
     procedure DoCallbackQueryGetUsers(ACallbackQuery: TCallbackQueryObj);
@@ -50,7 +50,6 @@ type
       AMessage: TTelegramMessageObj);
     procedure SetOnReceiveDeepLinking(AValue: TReceiveDeepLinkEvent);
     procedure SetPublicStat(AValue: Boolean);
-    procedure SetStatLogger(AValue: TtgStatLog);
     procedure SetUserStatus(ID: Int64; AValue: TUserStatus);
     procedure TlgrmStartHandler({%H-}ASender: TObject; const {%H-}ACommand: String;
       {%H-}AMessage: TTelegramMessageObj);
@@ -107,7 +106,7 @@ type
     //property OnRate: TRateEvent read FOnRate write SetOnRate;
     property OnReceiveDeepLinking: TReceiveDeepLinkEvent read FOnReceiveDeepLinking write SetOnReceiveDeepLinking;
     property PublicStat: Boolean read FPublicStat write SetPublicStat;
-    property StatLogger: TtgStatLog read FStatLogger write SetStatLogger;
+    property StatLogger: TtgStatLog read FStatLogger write FStatLogger;
   end;
 
 function ExtractArgPart(const ASource, ACommand: String): String;
@@ -265,12 +264,6 @@ begin
   FPublicStat:=AValue;
 end;
 
-procedure TTelegramBot.SetStatLogger(AValue: TtgStatLog);
-begin
-  if FStatLogger=AValue then Exit;
-  FStatLogger:=AValue;
-end;
-
 procedure TTelegramBot.BrowseStatFile(aDate: TDate; var Msg: String;
   ReplyMarkup: TReplyMarkup; Offset: Integer);
 var
@@ -300,8 +293,7 @@ begin
   end;
 end;
 
-procedure TTelegramBot.CalculateStat4Strings(aStatFile: TStrings;
-  IDs: TIntegerHashSet; var aEvents: Integer);
+class procedure TTelegramBot.CalculateStat4Strings(aStatFile: TStrings; IDs: TIntegerHashSet; var aEvents: Integer);
 var
   i: Integer;
   AnID: Int64;
@@ -317,8 +309,7 @@ begin
   end;
 end;
 
-procedure TTelegramBot.CalculateStat(aFromDate, aToDate: TDate; out aUsers,
-  aEvents: Integer; aIDs: TStrings);
+procedure TTelegramBot.CalculateStat(aFromDate, aToDate: TDate; out aUsers, aEvents: Integer; aIDs: TStrings);
 var
   StatFile: TStringList;
   aDate: TDate;
