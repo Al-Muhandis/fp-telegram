@@ -1,6 +1,7 @@
 unit testtelegram;
 
 {$mode objfpc}{$H+}
+{$codepage UTF8}
 
 interface
 
@@ -304,7 +305,7 @@ begin
   try
     UpdateObj:=TTelegramUpdateObj.Create(JSONData as TJSONObject);
     try
-      AssertEquals(utMessageReaction, UpdateObj.UpdateType);
+      AssertEquals(Ord(utMessageReaction), Ord(UpdateObj.UpdateType));
       ReactionUpdate:=UpdateObj.MessageReaction;
       AssertNotNull('MessageReaction should be assigned', ReactionUpdate);
       AssertEquals(42, ReactionUpdate.Chat.ID);
@@ -312,10 +313,10 @@ begin
       AssertNotNull('MessageReaction user should be assigned', ReactionUpdate.User);
       AssertEquals(99, ReactionUpdate.User.ID);
       AssertEquals(1, ReactionUpdate.OldReactions.Count);
-      AssertEquals('emoji', ReactionUpdate.OldReactions[0].TypeName);
+      AssertEquals(Ord(rtReactionTypeEmoji), Ord(ReactionUpdate.OldReactions[0].TypeEnum));
       AssertEquals('👍', ReactionUpdate.OldReactions[0].Emoji);
       AssertEquals(1, ReactionUpdate.NewReactions.Count);
-      AssertEquals('custom_emoji', ReactionUpdate.NewReactions[0].TypeName);
+      AssertEquals(Ord(rtReactionTypeCustomEmoji), Ord(ReactionUpdate.NewReactions[0].TypeEnum));
       AssertEquals('abc123', ReactionUpdate.NewReactions[0].CustomEmojiID);
     finally
       UpdateObj.Free;
@@ -341,28 +342,28 @@ const
       '}' +
     '}';
 var
-  UpdateObj: TTelegramUpdateObj;
-  ReactionCountUpdate: TTelegramMessageReactionCountUpdated;
-  JSONData: TJSONData;
+  aUpdateObj: TTelegramUpdateObj;
+  aReactionCountUpdate: TTelegramMessageReactionCountUpdated;
+  aJSONData: TJSONData;
 begin
-  JSONData:=GetJSON(ReactionCountUpdateJSON);
+  aJSONData:=GetJSON(ReactionCountUpdateJSON);
   try
-    UpdateObj:=TTelegramUpdateObj.Create(JSONData as TJSONObject);
+    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
     try
-      AssertEquals(utMessageReactionCount, UpdateObj.UpdateType);
-      ReactionCountUpdate:=UpdateObj.MessageReactionCount;
-      AssertNotNull('MessageReactionCount should be assigned', ReactionCountUpdate);
-      AssertEquals(123, ReactionCountUpdate.Chat.ID);
-      AssertEquals(10, ReactionCountUpdate.MessageID);
-      AssertEquals(1, ReactionCountUpdate.Reactions.Count);
-      AssertEquals(3, ReactionCountUpdate.Reactions[0].TotalCount);
-      AssertEquals('emoji', ReactionCountUpdate.Reactions[0].ReactionType.TypeName);
-      AssertEquals('❤️', ReactionCountUpdate.Reactions[0].ReactionType.Emoji);
+      AssertEquals(Ord(utMessageReactionCount), Ord(aUpdateObj.UpdateType));
+      aReactionCountUpdate:=aUpdateObj.MessageReactionCount;
+      AssertNotNull('MessageReactionCount should be assigned', aReactionCountUpdate);
+      AssertEquals(123, aReactionCountUpdate.Chat.ID);
+      AssertEquals(10, aReactionCountUpdate.MessageID);
+      AssertEquals(1, aReactionCountUpdate.Reactions.Count);
+      AssertEquals(3, aReactionCountUpdate.Reactions[0].TotalCount);
+      AssertEquals(Ord(rtReactionTypeEmoji), Ord(aReactionCountUpdate.Reactions[0].ReactionType.TypeEnum));
+      AssertEquals('❤️', aReactionCountUpdate.Reactions[0].ReactionType.Emoji);
     finally
-      UpdateObj.Free;
+      aUpdateObj.Free;
     end;
   finally
-    JSONData.Free;
+    aJSONData.Free;
   end;
 end;
 

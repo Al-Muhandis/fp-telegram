@@ -195,21 +195,28 @@ type
     property Data: String read FData;  // optional 1-64 bytes!!!
   end;
 
+  TReactionType = (rtNone, rtReactionTypeEmoji, rtReactionTypeCustomEmoji, rtReactionTypePaid);
+
   { TTelegramReactionType }
 
   TTelegramReactionType = class(TTelegramObj)
   private
-    FTypeName: String;
+    FTypeEnum: TReactionType;
     FEmoji: String;
     FCustomEmojiID: String;
   public
     constructor Create(JSONObject: TJSONObject); override;
-    property TypeName: String read FTypeName;
+    property TypeEnum: TReactionType read FTypeEnum;
     property Emoji: String read FEmoji;
     property CustomEmojiID: String read FCustomEmojiID;
   end;
 
-  TTelegramReactionTypeList = specialize TFPGObjectList<TTelegramReactionType>;
+  { TTelegramReactionTypeList }
+
+  TTelegramReactionTypeList = class(specialize TFPGObjectList<TTelegramReactionType>)
+  public
+    function CommaString: String;
+  end;
 
   { TTelegramReactionCount }
 
@@ -678,6 +685,8 @@ const
   s_MsgThrdID ='message_thread_id';
   s_BsnsCnctnID='business_connection_id';
 
+  _ReactionTypeStrings: array[TReactionType] of String = ('', 'emoji', 'custom_emoji', 'paid');
+
 function AllowedUpdatesToJSON(const AllowedUpdates: TUpdateSet): TJSONArray;
 var
   u: TUpdateType;
@@ -701,6 +710,17 @@ begin
   end;
   if Result=[] then
     Result:=utAllUpdates;
+end;
+
+function StringToReactionType(const aReactionType: String): TReactionType;
+var
+  i: Integer;
+begin
+  i:=IndexStr(aReactionType, _ReactionTypeStrings);
+  if i>-1 then
+    Result:=TReactionType(i)
+  else
+    Result:=rtNone;
 end;
 
 { TTelegramBaseChat }
@@ -1083,9 +1103,23 @@ end;
 constructor TTelegramReactionType.Create(JSONObject: TJSONObject);
 begin
   inherited Create(JSONObject);
-  FTypeName:=fJSON.Get('type', EmptyStr);
+  FTypeEnum:=StringToReactionType(fJSON.Strings['type']);
   FEmoji:=fJSON.Get('emoji', EmptyStr);
   FCustomEmojiID:=fJSON.Get('custom_emoji_id', EmptyStr);
+end;
+
+{ TTelegramReactionTypeList }
+
+function TTelegramReactionTypeList.CommaString: String;
+var
+  aReactionType: TTelegramReactionType;
+  aDelim: String = ', ';
+begin
+  Result:=EmptyStr;
+  for aReactionType in Self do
+    Result+=aReactionType.Emoji+aDelim;
+  if Length(Result)>=Length(aDelim) then
+    SetLength(Result, Length(Result)-Length(aDelim));
 end;
 
 { TTelegramReactionCount }
@@ -1110,13 +1144,17 @@ constructor TTelegramMessageReactionUpdated.Create(JSONObject: TJSONObject);
 var
   lJSONArray: TJSONArray;
   lJSONEnum: TJSONEnum;
+  aUser, aActorChat: TJSONObject;
 begin
   inherited Create(JSONObject);
   FMessageID:=fJSON.Integers['message_id'];
   FDate:=fJSON.Int64s['date'];
   FChat:=TTelegramChatObj.CreateFromJSONObject(fJSON.Find('chat', jtObject) as TJSONObject) as TTelegramChatObj;
-  FUser:=TTelegramUserObj.CreateFromJSONObject(fJSON.Find('user', jtObject) as TJSONObject) as TTelegramUserObj;
-  FActorChat:=TTelegramChatObj.CreateFromJSONObject(fJSON.Find('actor_chat', jtObject) as TJSONObject) as TTelegramChatObj;
+  aUser:=fJSON.Find('user', jtObject) as TJSONObject;
+  if Assigned(aUser) then
+    FUser:=TTelegramUserObj.CreateFromJSONObject(aUser) as TTelegramUserObj;
+  aActorChat:=fJSON.Find('actor_chat', jtObject) as TJSONObject;
+  FActorChat:=TTelegramChatObj.CreateFromJSONObject(aActorChat) as TTelegramChatObj;
   FOldReactions:=TTelegramReactionTypeList.Create;
   FNewReactions:=TTelegramReactionTypeList.Create;
 
