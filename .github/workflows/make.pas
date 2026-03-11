@@ -171,9 +171,18 @@ uses
       // BUILD-PROJECTS
       List := FindAllFiles(GetCurrentDir, '*.lpi');
       List.Sort;
+// BUILD-PROJECTS
+      List := FindAllFiles(GetCurrentDir, '*.lpi');
+      List.Sort;
       for BuildAll in List do
-        if not BuildAll.Contains(DirectorySeparator + 'use' + DirectorySeparator) then
-          BuildProject(BuildAll);
+      begin
+        if BuildAll.Contains(DirectorySeparator + 'use' + DirectorySeparator) then Continue;
+        if BuildAll.Contains('_synapse.lpi') then Continue;
+        {$IFDEF MSWINDOWS}
+        if BuildAll.Contains('tgpclocker') then Continue;
+        {$ENDIF}
+        BuildProject(BuildAll);
+      end;
     finally
       List.Free;
     end;

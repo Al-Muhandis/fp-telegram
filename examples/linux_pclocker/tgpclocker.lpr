@@ -4,9 +4,9 @@ program tgpclocker;
 
 uses
   {$IFDEF UNIX}
-  cthreads,
+  cthreads, Unix, xlib, x, CairoXlib,
   {$ENDIF}
-  Classes, SysUtils, Unix, CustApp, process, tgsendertypes, tgtypes, xlib, x, Cairo, CairoXlib;
+  Classes, SysUtils, CustApp, process, tgsendertypes, tgtypes, Cairo;
 
 type
 

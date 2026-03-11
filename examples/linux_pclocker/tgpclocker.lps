@@ -8,8 +8,7 @@
         <Filename Value="tgpclocker.lpr"/>
         <IsPartOfProject Value="True"/>
         <IsVisibleTab Value="True"/>
-        <TopLine Value="90"/>
-        <CursorPos X="21" Y="108"/>
+        <CursorPos X="69" Y="9"/>
         <UsageCount Value="30"/>
         <Loaded Value="True"/>
       </Unit>
@@ -46,14 +45,19 @@
       </Unit>
       <Unit>
         <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <EditorIndex Value="1"/>
+        <EditorIndex Value="-1"/>
         <TopLine Value="626"/>
         <CursorPos X="63" Y="638"/>
         <UsageCount Value="10"/>
-        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="../../../../../../../../laz-4.6/fpcsrc/rtl/unix/unix.pp"/>
+        <UnitName Value="Unix"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
       </Unit>
     </Units>
-    <JumpHistory HistoryIndex="11">
+    <JumpHistory HistoryIndex="16">
       <Position>
         <Filename Value="tgpclocker.lpr"/>
         <Caret Line="86" TopLine="62"/>
@@ -100,43 +104,27 @@
       </Position>
       <Position>
         <Filename Value="tgpclocker.lpr"/>
-        <Caret Line="108" Column="17" TopLine="90"/>
+        <Caret Line="108" Column="21" TopLine="90"/>
       </Position>
       <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="638" Column="63" TopLine="624"/>
+        <Filename Value="tgpclocker.lpr"/>
+        <Caret Line="9" Column="22"/>
       </Position>
       <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="754" Column="23" TopLine="728"/>
+        <Filename Value="tgpclocker.lpr"/>
+        <Caret Line="10" Column="37"/>
       </Position>
       <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="1793" Column="36" TopLine="1767"/>
+        <Filename Value="tgpclocker.lpr"/>
+        <Caret Line="8" Column="3"/>
       </Position>
       <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="1795" Column="19" TopLine="1769"/>
+        <Filename Value="tgpclocker.lpr"/>
+        <Caret Line="11" Column="67"/>
       </Position>
       <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="2248" Column="29" TopLine="2222"/>
-      </Position>
-      <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="2276" Column="29" TopLine="2250"/>
-      </Position>
-      <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="2397" Column="37" TopLine="2371"/>
-      </Position>
-      <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="2399" Column="11" TopLine="2373"/>
-      </Position>
-      <Position>
-        <Filename Value="../../f323l30fix/config_lazarus/onlinepackagemanager/packages/FpTelegram/tgsendertypes.pas"/>
-        <Caret Line="2539" Column="11" TopLine="2513"/>
+        <Filename Value="tgpclocker.lpr"/>
+        <Caret Line="7" Column="13"/>
       </Position>
     </JumpHistory>
     <RunParams>
