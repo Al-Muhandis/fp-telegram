@@ -36,6 +36,10 @@ type
     APreCheckoutQuery: TTelegramPreCheckOutQuery) of object;
   TSuccessfulPaymentEvent = procedure (ASender: TObject;
     ASuccessfulPayment: TTelegramSuccessfulPayment) of object;
+  TMessageReactionEvent = procedure (ASender: TObject;
+    AMessageReaction: TTelegramMessageReactionUpdated) of object;
+  TMessageReactionCountEvent = procedure (ASender: TObject;
+    AMessageReactionCount: TTelegramMessageReactionCountUpdated) of object;
 
   { TStringHash }
 
@@ -451,6 +455,8 @@ type
     FOnReceiveEditedMessage: TMessageEvent;
     FOnReceiveInlineQuery: TInlineQueryEvent;
     FOnReceiveMessage: TMessageEvent;
+    FOnReceiveMessageReaction: TMessageReactionEvent;
+    FOnReceiveMessageReactionCount: TMessageReactionCountEvent;
     FOnReceiveMyChatMemberUpdated: TChatMemberEvent;
     FOnReceivePreCheckoutQuery: TPreCheckoutQueryEvent;
     FOnReceiveSuccessfulPayment: TMessageEvent;
@@ -527,6 +533,8 @@ type
     procedure DoReceivePreCheckoutQuery(APreCheckoutQuery: TTelegramPreCheckOutQuery); virtual;  
     procedure DoReceiveMyChatMemberQuery(AMyChatMember: TTelegramChatMemberUpdated); virtual;
     procedure DoReceiveChatMemberQuery(AChatMember: TTelegramChatMemberUpdated); virtual;
+    procedure DoReceiveMessageReaction(AMessageReaction: TTelegramMessageReactionUpdated); virtual;
+    procedure DoReceiveMessageReactionCount(AMessageReactionCount: TTelegramMessageReactionCountUpdated); virtual;
     procedure DoReceiveSuccessfulPayment(AMessage: TTelegramMessageObj); virtual;  
     procedure DoReceiveBusinessConnection(ABusinessConnection: TTelegramBusinessConnectionObj); virtual; 
     procedure DoReceiveBusinessMessage(ABusinessMessage: TTelegramMessageObj); virtual;
@@ -743,7 +751,11 @@ type
     property OnReceiveBusinessConnection: TBusinessConnectionEvent read FOnReceiveBusinessConnection
       write FOnReceiveBusinessConnection;
     property OnReceiveBusinessMessage: TMessageEvent read FOnReceiveBusinessMessage
-      write FOnReceiveBusinessMessage;    
+      write FOnReceiveBusinessMessage;
+    property OnReceiveMessageReaction: TMessageReactionEvent read FOnReceiveMessageReaction
+      write FOnReceiveMessageReaction;
+    property OnReceiveMessageReactionCount: TMessageReactionCountEvent read FOnReceiveMessageReactionCount
+      write FOnReceiveMessageReactionCount;
     property OnReceiveMyChatMemberUpdated: TChatMemberEvent read FOnReceiveMyChatMemberUpdated
       write FOnReceiveMyChatMemberUpdated;
     property OnReceiveChatMemberUpdated: TChatMemberEvent read FOnReceiveChatMemberUpdated
@@ -2282,6 +2294,38 @@ begin
     FOnReceiveChatMemberUpdated(Self, AChatMember);
 end;
 
+procedure TTelegramSender.DoReceiveMessageReaction(
+  AMessageReaction: TTelegramMessageReactionUpdated);
+begin
+  FCurrentMessage:=nil;
+  FCurrentChat:=AMessageReaction.Chat;
+  FCurrentChatID:=AMessageReaction.Chat.ID;
+  FCurrentThreadId:=_nullThrd;
+  FCurrentIsTopicMessage:=False;
+  FCurrentUser:=AMessageReaction.User;
+  if CurrentIsBanned then
+    Exit;
+  DoAfterParseUpdate;
+  if Assigned(FOnReceiveMessageReaction) then
+    FOnReceiveMessageReaction(Self, AMessageReaction);
+end;
+
+procedure TTelegramSender.DoReceiveMessageReactionCount(
+  AMessageReactionCount: TTelegramMessageReactionCountUpdated);
+begin
+  FCurrentMessage:=nil;
+  FCurrentChat:=AMessageReactionCount.Chat;
+  FCurrentChatID:=AMessageReactionCount.Chat.ID;
+  FCurrentThreadId:=_nullThrd;
+  FCurrentIsTopicMessage:=False;
+  FCurrentUser:=nil;
+  if CurrentIsBanned then
+    Exit;
+  DoAfterParseUpdate;
+  if Assigned(FOnReceiveMessageReactionCount) then
+    FOnReceiveMessageReactionCount(Self, AMessageReactionCount);
+end;
+
 procedure TTelegramSender.DoReceiveSuccessfulPayment(
   AMessage: TTelegramMessageObj);
 begin
@@ -2354,6 +2398,8 @@ begin
         utChatMember:         DoReceiveChatMemberQuery(AnUpdate.ChatMember);
         utBusinessConnection: DoReceiveBusinessConnection(AnUpdate.BusinessConnection);
         utBusinessMessage:    DoReceiveBusinessMessage(AnUpdate.BusinessMessage);
+        utMessageReaction:    DoReceiveMessageReaction(AnUpdate.MessageReaction);
+        utMessageReactionCount: DoReceiveMessageReactionCount(AnUpdate.MessageReactionCount);
       end;
       if Assigned(FUpdateLogger) then
         if CurrentIsSimpleUser then  // This is to ensure that admins and moderators do not affect the statistics

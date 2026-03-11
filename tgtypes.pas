@@ -30,10 +30,14 @@ type
   TTelegramVoice = class;
   TTelegramAudio = class;
   TTelegramDocument = class;
+  TTelegramReactionType = class;
+  TTelegramReactionCount = class;
+  TTelegramMessageReactionUpdated = class;
+  TTelegramMessageReactionCountUpdated = class;
 
   TUpdateType = (utMessage, utEditedMessage, utChannelPost, utEditedChannelPost, utInlineQuery,
     utChosenInlineResult, utCallbackQuery, utShippingQuery, utPreCheckoutQuery, utMyChatMember, utChatMember,
-    utBusinessConnection, utBusinessMessage, utUnknown);
+    utBusinessConnection, utBusinessMessage, utMessageReaction, utMessageReactionCount, utUnknown);
   TChatType = (ctPrivate, ctGroup, ctSuperGroup, ctChannel, ctUnknown);
   TChatMemberStatus = (msCreator, msAdministrator, msMember, msRestricted, msLeft, msKicked, msUnknown);
   TUpdateSet = set of TUpdateType;
@@ -69,6 +73,8 @@ type
     function GetEditedMessage: TTelegramMessageObj;
     function GetInlineQuery: TTelegramInlineQueryObj;
     function GetMessage: TTelegramMessageObj;
+    function GetMessageReaction: TTelegramMessageReactionUpdated;
+    function GetMessageReactionCount: TTelegramMessageReactionCountUpdated;
     function GetMyChatMember: TTelegramChatMemberUpdated;
     function GetPreCheckoutQuery: TTelegramPreCheckOutQuery;
     function ParseUpdateParameter: TUpdateType;
@@ -88,6 +94,8 @@ type
     property PreCheckoutQuery: TTelegramPreCheckOutQuery read GetPreCheckoutQuery;
     property BusinessConnection: TTelegramBusinessConnectionObj read GetBusinessConnection; 
     property BusinessMessage: TTelegramMessageObj read GetBusinessMessage;   
+    property MessageReaction: TTelegramMessageReactionUpdated read GetMessageReaction;
+    property MessageReactionCount: TTelegramMessageReactionCountUpdated read GetMessageReactionCount;
     property MyChatMember: TTelegramChatMemberUpdated read GetMyChatMember;
     property ChatMember: TTelegramChatMemberUpdated read GetChatMember;
   end;
@@ -185,6 +193,84 @@ type
     property Message: TTelegramMessageObj read FMessage;
     property ChatInstance: String read FChatInstance;
     property Data: String read FData;  // optional 1-64 bytes!!!
+  end;
+
+  TReactionType = (rtNone, rtReactionTypeEmoji, rtReactionTypeCustomEmoji, rtReactionTypePaid);
+
+  { TTelegramReactionType }
+
+  TTelegramReactionType = class(TTelegramObj)
+  private
+    FTypeEnum: TReactionType;
+    FEmoji: String;
+    FCustomEmojiID: String;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    property TypeEnum: TReactionType read FTypeEnum;
+    property Emoji: String read FEmoji;
+    property CustomEmojiID: String read FCustomEmojiID;
+  end;
+
+  { TTelegramReactionTypeList }
+
+  TTelegramReactionTypeList = class(specialize TFPGObjectList<TTelegramReactionType>)
+  public
+    function CommaString: String;
+  end;
+
+  { TTelegramReactionCount }
+
+  TTelegramReactionCount = class(TTelegramObj)
+  private
+    FReactionType: TTelegramReactionType;
+    FTotalCount: Integer;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    destructor Destroy; override;
+    property ReactionType: TTelegramReactionType read FReactionType;
+    property TotalCount: Integer read FTotalCount;
+  end;
+
+  TTelegramReactionCountList = specialize TFPGObjectList<TTelegramReactionCount>;
+
+  { TTelegramMessageReactionUpdated }
+
+  TTelegramMessageReactionUpdated = class(TTelegramObj)
+  private
+    FChat: TTelegramChatObj;
+    FMessageID: Integer;
+    FUser: TTelegramUserObj;
+    FActorChat: TTelegramChatObj;
+    FDate: Int64;
+    FOldReactions: TTelegramReactionTypeList;
+    FNewReactions: TTelegramReactionTypeList;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    destructor Destroy; override;
+    property Chat: TTelegramChatObj read FChat;
+    property MessageID: Integer read FMessageID;
+    property User: TTelegramUserObj read FUser;
+    property ActorChat: TTelegramChatObj read FActorChat;
+    property Date: Int64 read FDate;
+    property OldReactions: TTelegramReactionTypeList read FOldReactions;
+    property NewReactions: TTelegramReactionTypeList read FNewReactions;
+  end;
+
+  { TTelegramMessageReactionCountUpdated }
+
+  TTelegramMessageReactionCountUpdated = class(TTelegramObj)
+  private
+    FChat: TTelegramChatObj;
+    FMessageID: Integer;
+    FDate: Int64;
+    FReactions: TTelegramReactionCountList;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    destructor Destroy; override;
+    property Chat: TTelegramChatObj read FChat;
+    property MessageID: Integer read FMessageID;
+    property Date: Int64 read FDate;
+    property Reactions: TTelegramReactionCountList read FReactions;
   end;
 
   { TTelegramBusinessConnectionObj }
@@ -570,11 +656,12 @@ type
     UpdateTypeAliases: array[TUpdateType] of String = ('message', 'edited_message', 'channel_post',
       'edited_channel_post', 'inline_query', 'chosen_inline_result', 'callback_query',
       'shipping_query', 'pre_checkout_query', 'my_chat_member', 'chat_member', 'business_connection',
-      'business_message', '');
+      'business_message', 'message_reaction', 'message_reaction_count', '');
     UpdateTypeClasses: array[TUpdateType] of TTelegramObjClass = (TTelegramMessageObj, TTelegramMessageObj,
       TTelegramMessageObj, TTelegramMessageObj, TTelegramInlineQueryObj, TTelegramChosenInlineResultObj,
       TCallbackQueryObj, TTelegramObj, TTelegramPreCheckOutQuery, TTelegramChatMemberUpdated,
-      TTelegramChatMemberUpdated, TTelegramBusinessConnectionObj, TTelegramMessageObj, TTelegramObj);
+      TTelegramChatMemberUpdated, TTelegramBusinessConnectionObj, TTelegramMessageObj,
+      TTelegramMessageReactionUpdated, TTelegramMessageReactionCountUpdated, TTelegramObj);
     _nullThrd = 0;
 
 function AllowedUpdatesToJSON(const AllowedUpdates: TUpdateSet): TJSONArray;
@@ -597,6 +684,8 @@ const
   s_IsTpcMsg = 'is_topic_message';
   s_MsgThrdID ='message_thread_id';
   s_BsnsCnctnID='business_connection_id';
+
+  _ReactionTypeStrings: array[TReactionType] of String = ('', 'emoji', 'custom_emoji', 'paid');
 
 function AllowedUpdatesToJSON(const AllowedUpdates: TUpdateSet): TJSONArray;
 var
@@ -621,6 +710,17 @@ begin
   end;
   if Result=[] then
     Result:=utAllUpdates;
+end;
+
+function StringToReactionType(const aReactionType: String): TReactionType;
+var
+  i: Integer;
+begin
+  i:=IndexStr(aReactionType, _ReactionTypeStrings);
+  if i>-1 then
+    Result:=TReactionType(i)
+  else
+    Result:=rtNone;
 end;
 
 { TTelegramBaseChat }
@@ -998,6 +1098,116 @@ begin
   inherited Destroy;
 end;
 
+{ TTelegramReactionType }
+
+constructor TTelegramReactionType.Create(JSONObject: TJSONObject);
+begin
+  inherited Create(JSONObject);
+  FTypeEnum:=StringToReactionType(fJSON.Strings['type']);
+  FEmoji:=fJSON.Get('emoji', EmptyStr);
+  FCustomEmojiID:=fJSON.Get('custom_emoji_id', EmptyStr);
+end;
+
+{ TTelegramReactionTypeList }
+
+function TTelegramReactionTypeList.CommaString: String;
+var
+  aReactionType: TTelegramReactionType;
+  aDelim: String = ', ';
+begin
+  Result:=EmptyStr;
+  for aReactionType in Self do
+    Result+=aReactionType.Emoji+aDelim;
+  if Length(Result)>=Length(aDelim) then
+    SetLength(Result, Length(Result)-Length(aDelim));
+end;
+
+{ TTelegramReactionCount }
+
+constructor TTelegramReactionCount.Create(JSONObject: TJSONObject);
+begin
+  inherited Create(JSONObject);
+  FReactionType:=TTelegramReactionType.CreateFromJSONObject(
+    fJSON.Find('type', jtObject) as TJSONObject) as TTelegramReactionType;
+  FTotalCount:=fJSON.Get('total_count', 0);
+end;
+
+destructor TTelegramReactionCount.Destroy;
+begin
+  FReactionType.Free;
+  inherited Destroy;
+end;
+
+{ TTelegramMessageReactionUpdated }
+
+constructor TTelegramMessageReactionUpdated.Create(JSONObject: TJSONObject);
+var
+  lJSONArray: TJSONArray;
+  lJSONEnum: TJSONEnum;
+  aUser, aActorChat: TJSONObject;
+begin
+  inherited Create(JSONObject);
+  FMessageID:=fJSON.Integers['message_id'];
+  FDate:=fJSON.Int64s['date'];
+  FChat:=TTelegramChatObj.CreateFromJSONObject(fJSON.Find('chat', jtObject) as TJSONObject) as TTelegramChatObj;
+  aUser:=fJSON.Find('user', jtObject) as TJSONObject;
+  if Assigned(aUser) then
+    FUser:=TTelegramUserObj.CreateFromJSONObject(aUser) as TTelegramUserObj;
+  aActorChat:=fJSON.Find('actor_chat', jtObject) as TJSONObject;
+  FActorChat:=TTelegramChatObj.CreateFromJSONObject(aActorChat) as TTelegramChatObj;
+  FOldReactions:=TTelegramReactionTypeList.Create;
+  FNewReactions:=TTelegramReactionTypeList.Create;
+
+  lJSONArray := fJSON.Find('old_reaction', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    for lJSONEnum in lJSONArray do
+      FOldReactions.Add(TTelegramReactionType.CreateFromJSONObject(
+        lJSONEnum.Value as TJSONObject) as TTelegramReactionType);
+
+  lJSONArray := fJSON.Find('new_reaction', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    for lJSONEnum in lJSONArray do
+      FNewReactions.Add(TTelegramReactionType.CreateFromJSONObject(
+        lJSONEnum.Value as TJSONObject) as TTelegramReactionType);
+end;
+
+destructor TTelegramMessageReactionUpdated.Destroy;
+begin
+  FChat.Free;
+  FUser.Free;
+  FActorChat.Free;
+  FOldReactions.Free;
+  FNewReactions.Free;
+  inherited Destroy;
+end;
+
+{ TTelegramMessageReactionCountUpdated }
+
+constructor TTelegramMessageReactionCountUpdated.Create(JSONObject: TJSONObject);
+var
+  lJSONArray: TJSONArray;
+  lJSONEnum: TJSONEnum;
+begin
+  inherited Create(JSONObject);
+  FMessageID:=fJSON.Integers['message_id'];
+  FDate:=fJSON.Int64s['date'];
+  FChat:=TTelegramChatObj.CreateFromJSONObject(fJSON.Find('chat', jtObject) as TJSONObject) as TTelegramChatObj;
+  FReactions:=TTelegramReactionCountList.Create;
+
+  lJSONArray := fJSON.Find('reactions', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    for lJSONEnum in lJSONArray do
+      FReactions.Add(TTelegramReactionCount.CreateFromJSONObject(
+        lJSONEnum.Value as TJSONObject) as TTelegramReactionCount);
+end;
+
+destructor TTelegramMessageReactionCountUpdated.Destroy;
+begin
+  FChat.Free;
+  FReactions.Free;
+  inherited Destroy;
+end;
+
 { TTelegramBusinessConnectionObj }
 
 constructor TTelegramBusinessConnectionObj.Create(JSONObject: TJSONObject);
@@ -1187,6 +1397,22 @@ function TTelegramUpdateObj.GetInlineQuery: TTelegramInlineQueryObj;
 begin
   if FUpdateType=utInlineQuery then
     Result:=TTelegramInlineQueryObj(FUpdateParameter)
+  else
+    Result:=nil;
+end;
+
+function TTelegramUpdateObj.GetMessageReaction: TTelegramMessageReactionUpdated;
+begin
+  if FUpdateType=utMessageReaction then
+    Result:=TTelegramMessageReactionUpdated(FUpdateParameter)
+  else
+    Result:=nil;
+end;
+
+function TTelegramUpdateObj.GetMessageReactionCount: TTelegramMessageReactionCountUpdated;
+begin
+  if FUpdateType=utMessageReactionCount then
+    Result:=TTelegramMessageReactionCountUpdated(FUpdateParameter)
   else
     Result:=nil;
 end;

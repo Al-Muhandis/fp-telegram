@@ -1,6 +1,7 @@
 unit testtelegram;
 
 {$mode objfpc}{$H+}
+{$codepage UTF8}
 
 interface
 
@@ -74,6 +75,14 @@ type
   TTestSenderProcedure=class(TTestTelegramBase)
   published
     procedure sendMessage;
+  end;
+
+  { TTestReactionUpdates }
+
+  TTestReactionUpdates=class(TTestCase)
+  published
+    procedure ParseMessageReactionUpdate;
+    procedure ParseMessageReactionCountUpdate;
   end;
 
   { TTestReceiveLongPollingBase }
@@ -269,6 +278,93 @@ begin
   if not TgBotSendMessage(AToken, AChatID, Format(Msg, [Self.ClassName, TestName]), AReply) then
     Fail('Fail to send message from telegram bot!');
   SaveString(AReply, '~JSONResponce.json');
+end;
+
+{ TTestReactionUpdates }
+
+procedure TTestReactionUpdates.ParseMessageReactionUpdate;
+const
+  ReactionUpdateJSON =
+    '{' +
+      '"update_id":1000,' +
+      '"message_reaction":{' +
+        '"chat":{"id":42,"type":"private","first_name":"Test"},' +
+        '"message_id":7,' +
+        '"user":{"id":99,"is_bot":false,"first_name":"Bob"},' +
+        '"date":1700000000,' +
+        '"old_reaction":[{"type":"emoji","emoji":"👍"}],' +
+        '"new_reaction":[{"type":"custom_emoji","custom_emoji_id":"abc123"}]' +
+      '}' +
+    '}';
+var
+  UpdateObj: TTelegramUpdateObj;
+  ReactionUpdate: TTelegramMessageReactionUpdated;
+  JSONData: TJSONData;
+begin
+  JSONData:=GetJSON(ReactionUpdateJSON);
+  try
+    UpdateObj:=TTelegramUpdateObj.Create(JSONData as TJSONObject);
+    try
+      AssertEquals(Ord(utMessageReaction), Ord(UpdateObj.UpdateType));
+      ReactionUpdate:=UpdateObj.MessageReaction;
+      AssertNotNull('MessageReaction should be assigned', ReactionUpdate);
+      AssertEquals(42, ReactionUpdate.Chat.ID);
+      AssertEquals(7, ReactionUpdate.MessageID);
+      AssertNotNull('MessageReaction user should be assigned', ReactionUpdate.User);
+      AssertEquals(99, ReactionUpdate.User.ID);
+      AssertEquals(1, ReactionUpdate.OldReactions.Count);
+      AssertEquals(Ord(rtReactionTypeEmoji), Ord(ReactionUpdate.OldReactions[0].TypeEnum));
+      AssertEquals('👍', ReactionUpdate.OldReactions[0].Emoji);
+      AssertEquals(1, ReactionUpdate.NewReactions.Count);
+      AssertEquals(Ord(rtReactionTypeCustomEmoji), Ord(ReactionUpdate.NewReactions[0].TypeEnum));
+      AssertEquals('abc123', ReactionUpdate.NewReactions[0].CustomEmojiID);
+    finally
+      UpdateObj.Free;
+    end;
+  finally
+    JSONData.Free;
+  end;
+end;
+
+procedure TTestReactionUpdates.ParseMessageReactionCountUpdate;
+const
+  ReactionCountUpdateJSON =
+    '{' +
+      '"update_id":1001,' +
+      '"message_reaction_count":{' +
+        '"chat":{"id":123,"type":"supergroup","title":"Test Group"},' +
+        '"message_id":10,' +
+        '"date":1700000100,' +
+        '"reactions":[{' +
+          '"type":{"type":"emoji","emoji":"❤️"},' +
+          '"total_count":3' +
+        '}]' +
+      '}' +
+    '}';
+var
+  aUpdateObj: TTelegramUpdateObj;
+  aReactionCountUpdate: TTelegramMessageReactionCountUpdated;
+  aJSONData: TJSONData;
+begin
+  aJSONData:=GetJSON(ReactionCountUpdateJSON);
+  try
+    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
+    try
+      AssertEquals(Ord(utMessageReactionCount), Ord(aUpdateObj.UpdateType));
+      aReactionCountUpdate:=aUpdateObj.MessageReactionCount;
+      AssertNotNull('MessageReactionCount should be assigned', aReactionCountUpdate);
+      AssertEquals(123, aReactionCountUpdate.Chat.ID);
+      AssertEquals(10, aReactionCountUpdate.MessageID);
+      AssertEquals(1, aReactionCountUpdate.Reactions.Count);
+      AssertEquals(3, aReactionCountUpdate.Reactions[0].TotalCount);
+      AssertEquals(Ord(rtReactionTypeEmoji), Ord(aReactionCountUpdate.Reactions[0].ReactionType.TypeEnum));
+      AssertEquals('❤️', aReactionCountUpdate.Reactions[0].ReactionType.Emoji);
+    finally
+      aUpdateObj.Free;
+    end;
+  finally
+    aJSONData.Free;
+  end;
 end;
 
 { TTestSender }
@@ -597,7 +693,7 @@ begin
 end;
 
 initialization
-  RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling, TTestPayments]);
+  RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
+    TTestPayments, TTestReactionUpdates]);
 
 end.
-
