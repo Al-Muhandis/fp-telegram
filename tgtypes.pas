@@ -10,6 +10,7 @@ uses
 type
   TTelegramUpdateObj = class;
   TTelegramMessageObj = class;
+  TTelegramTextQuote = class;
   TTelegramMessageEntityObj = class;
   TTelegramChatMemberUpdated = class;
   TTelegramInlineQueryObj = class;
@@ -125,6 +126,7 @@ type
     FMessageThreadID: Integer;
     FPhoto: TTelegramPhotoSizeList;
     FReplyToMessage: TTelegramMessageObj;
+    FQuote: TTelegramTextQuote;
     FSuccessfulPayment: TTelegramSuccessfulPayment;
     FViaBot: TTelegramUserObj;
     FVideo: TTelegramVideo;
@@ -146,6 +148,7 @@ type
     property ForwardFromMessageID: Integer read FForwardFromMessageID;
     property ChatId: Int64 read fChatId;
     property ReplyToMessage: TTelegramMessageObj read FReplyToMessage;
+    property Quote: TTelegramTextQuote read FQuote;
     property Text: string read fText;
     property Entities: TTelegramUpdateObjList read fEntities;
     property Document: TTelegramDocument read FDocument;
@@ -160,6 +163,23 @@ type
     property MediaGroupID: String read FMediaGroupID;
     property MessageThreadID: Integer read FMessageThreadID;
     property IsTopicMessage: Boolean read FIsTopicMessage;
+  end;
+
+  { TTelegramTextQuote }
+
+  TTelegramTextQuote = class(TTelegramObj)
+  private
+    FPosition: Integer;
+    FText: String;
+    FEntities: TTelegramUpdateObjList;
+    FIsManual: Boolean;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    destructor Destroy; override;
+    property Position: Integer read FPosition;
+    property Text: String read FText;
+    property Entities: TTelegramUpdateObjList read FEntities;
+    property IsManual: Boolean read FIsManual;
   end;
 
   { TTelegramMessageEntityObj }
@@ -1477,6 +1497,9 @@ begin
     TTelegramMessageObj.CreateFromJSONObject(fJSON.Find('reply_to_message', jtObject) as TJSONObject)
     as TTelegramMessageObj;
 
+  FQuote:=TTelegramTextQuote.CreateFromJSONObject(fJSON.Find('quote', jtObject) as TJSONObject)
+    as TTelegramTextQuote;
+
   lJSONArray := fJSON.Find('entities', jtArray) as TJSONArray;
   if Assigned(lJSONArray) then
     for lJSONEnum in lJSONArray do
@@ -1506,12 +1529,38 @@ begin
   FLocation.Free;
   FChat.Free;
   FReplyToMessage.Free;
+  FQuote.Free;
   FPhoto.Free;
   FDocument.Free;
   FAudio.Free;
   FVideo.Free;
   FVoice.Free;
   fEntities.Free;
+  inherited Destroy;
+end;
+
+{ TTelegramTextQuote }
+
+constructor TTelegramTextQuote.Create(JSONObject: TJSONObject);
+var
+  lJSONArray: TJSONArray;
+  lJSONEnum: TJSONEnum;
+begin
+  inherited Create(JSONObject);
+  FPosition:=fJSON.Get('position', 0);
+  FText:=fJSON.Get('text', EmptyStr);
+  FIsManual:=fJSON.Get('is_manual', False);
+  FEntities:=TTelegramUpdateObjList.Create;
+
+  lJSONArray := fJSON.Find('entities', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    for lJSONEnum in lJSONArray do
+      FEntities.Add(TTelegramMessageEntityObj.CreateFromJSONObject(lJSONEnum.Value as TJSONObject) as TTelegramMessageEntityObj);
+end;
+
+destructor TTelegramTextQuote.Destroy;
+begin
+  FEntities.Free;
   inherited Destroy;
 end;
 

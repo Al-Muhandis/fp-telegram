@@ -99,6 +99,13 @@ type
     procedure ReceiveUpdate;
   end;
 
+  { TTestMessageQuote }
+
+  TTestMessageQuote=class(TTestCase)
+  published
+    procedure ParseMessageQuote;
+  end;
+
   { TTestPayments }
 
   TTestPayments=class(TTestTelegramClass)
@@ -359,6 +366,55 @@ begin
       AssertEquals(3, aReactionCountUpdate.Reactions[0].TotalCount);
       AssertEquals(Ord(rtReactionTypeEmoji), Ord(aReactionCountUpdate.Reactions[0].ReactionType.TypeEnum));
       AssertEquals('❤️', aReactionCountUpdate.Reactions[0].ReactionType.Emoji);
+    finally
+      aUpdateObj.Free;
+    end;
+  finally
+    aJSONData.Free;
+  end;
+end;
+
+{ TTestMessageQuote }
+
+procedure TTestMessageQuote.ParseMessageQuote;
+const
+  MessageWithQuoteJSON =
+    '{' +
+      '"update_id":1002,' +
+      '"message":{' +
+        '"message_id":55,' +
+        '"date":1700000200,' +
+        '"chat":{"id":77,"type":"private","first_name":"Test"},' +
+        '"from":{"id":88,"is_bot":false,"first_name":"Alice"},' +
+        '"text":"Reply with quote",' +
+        '"quote":{' +
+          '"position":6,' +
+          '"text":"quoted",' +
+          '"is_manual":true,' +
+          '"entities":[{"type":"bold","offset":0,"length":6}]' +
+        '}' +
+      '}' +
+    '}';
+var
+  aUpdateObj: TTelegramUpdateObj;
+  aMessage: TTelegramMessageObj;
+  aJSONData: TJSONData;
+begin
+  aJSONData:=GetJSON(MessageWithQuoteJSON);
+  try
+    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
+    try
+      AssertEquals(Ord(utMessage), Ord(aUpdateObj.UpdateType));
+      aMessage:=aUpdateObj.Message;
+      AssertNotNull('Message should be assigned', aMessage);
+      AssertNotNull('Quote should be assigned', aMessage.Quote);
+      AssertEquals(6, aMessage.Quote.Position);
+      AssertEquals('quoted', aMessage.Quote.Text);
+      AssertTrue('Quote.IsManual should be True', aMessage.Quote.IsManual);
+      AssertEquals(1, aMessage.Quote.Entities.Count);
+      AssertEquals('bold', aMessage.Quote.Entities[0].TypeEntity);
+      AssertEquals(0, aMessage.Quote.Entities[0].Offset);
+      AssertEquals(6, aMessage.Quote.Entities[0].Length);
     finally
       aUpdateObj.Free;
     end;
@@ -694,6 +750,6 @@ end;
 
 initialization
   RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
-    TTestPayments, TTestReactionUpdates]);
+    TTestPayments, TTestReactionUpdates, TTestMessageQuote]);
 
 end.
