@@ -2601,6 +2601,7 @@ begin
   AssignHTTProxy(HTTP);
   AStream:=TStringStream.Create(EmptyStr);
   try
+    HTTP.IOTimeout:=FTimeout;
     try
       HTTP.AddHeader('Content-Type','multipart/form-data');
       HTTP.FileFormPost(APIEndPoint+FToken+'/'+Method, AFormData, FileField, FileName, AStream);
@@ -2625,6 +2626,7 @@ begin
   HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
   AssignHTTProxy(HTTP);
   try
+    HTTP.IOTimeout:=FTimeout;
     try
       FResponse:=HTTP.FilesFormPost(APIEndPoint+FToken+'/'+Method, aFormData, aFiles);
       Result:=True;
@@ -2695,6 +2697,7 @@ begin
   HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
   AssignHTTProxy(HTTP);
   try
+    HTTP.IOTimeout:=FTimeout;
     try
       FResponse:=HTTP.StreamsFormPost(APIEndPoint+FToken+'/'+Method, aFormData, aStreams);
       Result:=True;
