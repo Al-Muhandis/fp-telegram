@@ -364,6 +364,9 @@ constructor TFCLHTTPClient.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FHTTPClient:=TFPHTTPClient.Create(AOwner);
+  // FCL defaults are infinite (IOTimeout=0, ConnectTimeout unset).
+  FHTTPClient.IOTimeout:=15000;
+  FHTTPClient.ConnectTimeout:=10000;
   {$IFDEF ExplSSL}FHTTPClient.OnGetSocketHandler:=@HttpClientGetSocketHandler;{$ENDIF}
 end;
 
