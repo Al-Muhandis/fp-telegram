@@ -43,6 +43,9 @@ type
     { True when testtelegram.ini contains both the bot token and the chat ID.
       Integration tests must be registered only if it is True }
     class function Configured: Boolean;
+    { True when [Manual] Enable=1 is set in testtelegram.ini: additional tests
+      that need a human interaction during the run are registered then }
+    class function ManualEnabled: Boolean;
   end;
 
 implementation
@@ -64,6 +67,21 @@ begin
   try
     Result:=(lConf.ReadString('Bot', 'Token', EmptyStr)<>EmptyStr) and
       (lConf.ReadInt64('Chat', 'ID', 0)<>0);
+  finally
+    lConf.Free;
+  end;
+end;
+
+class function TTestTelegramClass.ManualEnabled: Boolean;
+var
+  lConf: TMemIniFile;
+begin
+  Result:=False;
+  if not FileExists('testtelegram.ini') then
+    Exit;
+  lConf:=TMemIniFile.Create('testtelegram.ini');
+  try
+    Result:=lConf.ReadInteger('Manual', 'Enable', 0)<>0;
   finally
     lConf.Free;
   end;

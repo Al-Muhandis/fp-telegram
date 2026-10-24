@@ -26,6 +26,22 @@ tests are registered **only** when `testtelegram.ini` is configured (both the
 bot token and the chat ID are present), so CI and machines without a test bot
 simply skip them.
 
+### Manual tests
+
+A few tests need a human interaction during the run or a private chat started
+with the bot. They are excluded from the default run and are registered only
+when the ini contains:
+
+``` INI
+[Manual]
+Enable=1
+```
+
+They are: `TTestSenderManual.SendReplyKeyboard` (press Start in the bot's
+private chat first), `TTestReceiveLongPolling.ReceiveUpdate` (send a message
+to the bot during the test) and `TTestPayments` (send the invoice and pay it
+during the test; the payment provider token must be valid).
+
 Add some data so that you can test the telegram bots API wrapper
 ``` INI
 
