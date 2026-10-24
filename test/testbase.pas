@@ -72,6 +72,10 @@ end;
 procedure TTestTelegramClass.SetUp;
 begin
   inherited SetUp;
+  { Telegram limits the message rate per chat (~20/min). The integration suite
+    sends many messages to the same chat in a row, so keep a small pause between
+    the tests to avoid 429 Too Many Requests responses }
+  TThread.Sleep(1500);
   FBot:=TTelegramSender.Create(FConf.ReadString('Bot', 'Token', EmptyStr));
   FBot.Logger:=TEventLog.Create(nil);
   FBot.LogDebug:=True;

@@ -25,12 +25,16 @@ type
     FJSONMediaGroup: String;
     FPhotoFile: String;
     FPhotoUrl: String;
+    FPrivateChatID: Int64;
     FUrl: String;
     FVideoFile: String;
     FVideoUrl: String;
   protected
     procedure SetUp; override;
   public
+    { Private chat with the bot: some keyboards (request_location, request_contact)
+      are allowed in private chats only }
+    property PrivateChatID: Int64 read FPrivateChatID;
     property VideoUrl: String read FVideoUrl;
     property Url: String read FUrl;
     property VideoFile: String read FVideoFile;
@@ -137,6 +141,9 @@ const
   vd_cptn='Test video sent from %s. Test procedure: %s';
   pht_cptn='Test photo sent from %s. Test procedure: %s';
   Msg_md='Test message sent from %s. Test procedure: _%s_';
+
+  DefaultMediaGroupURLs='[{ "type" : "photo", "media" : "https://picsum.photos/seed/tgA/800/600" },'+
+    '{ "type" : "photo", "media" : "https://picsum.photos/seed/tgB/800/600" }]';
 
   s_Username='Username';
   s_Password='Password';
@@ -291,6 +298,9 @@ begin
   FPhotoUrl:=Conf.ReadString('Send', 'photourl', EmptyStr);
   FPhotoFile:=Conf.ReadString('Send', 'PhotoFile', EmptyStr);
   FJSONMediaGroup:=Conf.ReadString('Send', 'JSONMediaGroup', EmptyStr);
+  FPrivateChatID:=Conf.ReadInt64('Chat', 'PrivateID', 0);
+  if FPrivateChatID=0 then
+    FPrivateChatID:=ChatID;
 end;
 
 procedure TTestSender.sendMessage;
@@ -342,7 +352,7 @@ begin
     Buttons.Buttons[i].RequestLocation:=True;
     i:=Buttons.AddButton('Send contact');
     Buttons.Buttons[i].RequestContact:=True;
-    if not Bot.sendMessage(ChatID, Format(Msg_md, [Self.ClassName, TestName]), pmMarkdown,
+    if not Bot.sendMessage(PrivateChatID, Format(Msg_md, [Self.ClassName, TestName]), pmMarkdown,
       False, ReplyMarkup) then
       Fail('Connection error. See log');
   finally
@@ -435,7 +445,9 @@ var
   aMedias: TInputMediaArray;
   i: TJSONEnum;
 begin
-  aJSONData:=GetJSON(JSONMediaGroup) as TJSONArray;
+  { This test sends media by URL: take the list from JSONMediaGroupURLs.
+    JSONMediaGroup is used by sendMediaGroupByFileNames and contains local file names }
+  aJSONData:=GetJSON(Conf.ReadString('Send', 'JSONMediaGroupURLs', DefaultMediaGroupURLs)) as TJSONArray;
   aMedias:=TInputMediaArray.Create;
   try
     for i in aJSONData do
