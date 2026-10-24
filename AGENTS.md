@@ -3,14 +3,6 @@
 Guidelines for contributors, both humans and AI agents. Read this before
 changing the code.
 
-## The one hard rule
-
-The public API is **frozen**: a large amount of third-party software is built
-on this library. Only **additive** changes are allowed — new methods, new
-properties, new classes. Never rename, remove or change the signature of an
-existing public symbol, and never change the behaviour of existing code paths
-unless it is a bug fix (explain it in the commit message).
-
 ## Project layout
 
 | Path | Purpose |
