@@ -8,6 +8,8 @@ Also You can try desktop application (long polling getting updates): _LongPollin
 
 Simplest _getMe_ app with no multithreading and without getting updates
 
+_SimpleSendMessage_ console app: the minimal one-message sender (get token from BotFather, set chat id in code)
+
 Application example bot using longpolling [Telegram shell emulator](https://github.com/Al-Muhandis/ShellRemoteBot).
 
 --- --- ---
@@ -19,5 +21,7 @@ Application example bot using longpolling [Telegram shell emulator](https://gith
 Вы также можете попробовать приложение (десктоп) (с использованием Long polling для получения обновлений): _LongPollingDesktop_ в примере
 
 Простейшее приложение _getMe_ без поддержки мультипоточности и без получения обновлений
+
+_SimpleSendMessage_ — консольное приложение: минимальная отправка одного сообщения (токен от BotFather, chat id в коде)
 
 Пример приложения с использованием LongPolling - [Telegram shell emulator](https://github.com/Al-Muhandis/ShellRemoteBot).
