@@ -3,7 +3,8 @@ program console;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, consoletestrunner, testtelegram, tgfclhttpclientbroker;
+  Classes, consoletestrunner, testtelegram, testtgtypes, testsendertypes,
+  testtgutils, testsendermock, tgfclhttpclientbroker;
 
 type
 

@@ -1,5 +1,13 @@
 unit testtelegram;
 
+{
+  Integration tests: they perform real requests to the Telegram API server using
+  the bot token and the chat ID from testtelegram.ini.
+  These tests are registered only when testtelegram.ini is configured
+  (see TTestTelegramClass.Configured), so CI and machines without a test bot
+  run only the unit tests (see testtgtypes, testsendertypes and testsendermock units).
+}
+
 {$mode objfpc}{$H+}
 {$codepage UTF8}
 
@@ -33,18 +41,18 @@ type
     procedure sendMessage;
     procedure InlineKeyboard;
     procedure SendReplyKeyboard;
-    procedure sendVideo;  
+    procedure sendVideo;
     procedure sendVideoByFileName;
     procedure sendVideoStream;
-    procedure sendPhoto;   
+    procedure sendPhoto;
     procedure sendPhotoWithInlineKeyboardAndThenEdit;
     procedure sendPhotoByFileName;
-    procedure sendMediaGroup;      
+    procedure sendMediaGroup;
     procedure sendMediaGroupByFileName;
     procedure SendPoll;
     procedure ChatMember;
     procedure getWebhookInfo;
-    procedure setWebhook;    
+    procedure setWebhook;
     procedure deleteWebhook; {$IF FPC_FULLVERSION > 30004}
     procedure testCodePage;{$ENDIF}
     procedure getMyCommands;
@@ -77,21 +85,6 @@ type
     procedure sendMessage;
   end;
 
-  { TTestReactionUpdates }
-
-  TTestReactionUpdates=class(TTestCase)
-  published
-    procedure ParseMessageReactionUpdate;
-    procedure ParseMessageReactionCountUpdate;
-  end;
-
-  { TTestSenderTypes }
-
-  TTestSenderTypes=class(TTestCase)
-  published
-    procedure KeyboardButtonsStyle;
-  end;
-
   { TTestReceiveLongPollingBase }
   { Test receiving updates via longpolling from the test bot. Please send test messages to the bot
     immediately before running the test! }
@@ -104,14 +97,6 @@ type
     property Received: Boolean read FReceived write FReceived;
   published
     procedure ReceiveUpdate;
-  end;
-
-  { TTestMessageQuote }
-
-  TTestMessageQuote=class(TTestCase)
-  published
-    procedure ParseMessageQuote;
-    procedure ParseMessageExternalReply;
   end;
 
   { TTestPayments }
@@ -149,7 +134,7 @@ uses
 
 const
   Msg='Test message sent from %s. Test procedure: %s';
-  vd_cptn='Test video sent from %s. Test procedure: %s'; 
+  vd_cptn='Test video sent from %s. Test procedure: %s';
   pht_cptn='Test photo sent from %s. Test procedure: %s';
   Msg_md='Test message sent from %s. Test procedure: _%s_';
 
@@ -295,217 +280,6 @@ begin
   SaveString(AReply, '~JSONResponce.json');
 end;
 
-{ TTestReactionUpdates }
-
-procedure TTestReactionUpdates.ParseMessageReactionUpdate;
-const
-  ReactionUpdateJSON =
-    '{' +
-      '"update_id":1000,' +
-      '"message_reaction":{' +
-        '"chat":{"id":42,"type":"private","first_name":"Test"},' +
-        '"message_id":7,' +
-        '"user":{"id":99,"is_bot":false,"first_name":"Bob"},' +
-        '"date":1700000000,' +
-        '"old_reaction":[{"type":"emoji","emoji":"👍"}],' +
-        '"new_reaction":[{"type":"custom_emoji","custom_emoji_id":"abc123"}]' +
-      '}' +
-    '}';
-var
-  UpdateObj: TTelegramUpdateObj;
-  ReactionUpdate: TTelegramMessageReactionUpdated;
-  JSONData: TJSONData;
-begin
-  JSONData:=GetJSON(ReactionUpdateJSON);
-  try
-    UpdateObj:=TTelegramUpdateObj.Create(JSONData as TJSONObject);
-    try
-      AssertEquals(Ord(utMessageReaction), Ord(UpdateObj.UpdateType));
-      ReactionUpdate:=UpdateObj.MessageReaction;
-      AssertNotNull('MessageReaction should be assigned', ReactionUpdate);
-      AssertEquals(42, ReactionUpdate.Chat.ID);
-      AssertEquals(7, ReactionUpdate.MessageID);
-      AssertNotNull('MessageReaction user should be assigned', ReactionUpdate.User);
-      AssertEquals(99, ReactionUpdate.User.ID);
-      AssertEquals(1, ReactionUpdate.OldReactions.Count);
-      AssertEquals(Ord(rtReactionTypeEmoji), Ord(ReactionUpdate.OldReactions[0].TypeEnum));
-      AssertEquals('👍', ReactionUpdate.OldReactions[0].Emoji);
-      AssertEquals(1, ReactionUpdate.NewReactions.Count);
-      AssertEquals(Ord(rtReactionTypeCustomEmoji), Ord(ReactionUpdate.NewReactions[0].TypeEnum));
-      AssertEquals('abc123', ReactionUpdate.NewReactions[0].CustomEmojiID);
-    finally
-      UpdateObj.Free;
-    end;
-  finally
-    JSONData.Free;
-  end;
-end;
-
-procedure TTestReactionUpdates.ParseMessageReactionCountUpdate;
-const
-  ReactionCountUpdateJSON =
-    '{' +
-      '"update_id":1001,' +
-      '"message_reaction_count":{' +
-        '"chat":{"id":123,"type":"supergroup","title":"Test Group"},' +
-        '"message_id":10,' +
-        '"date":1700000100,' +
-        '"reactions":[{' +
-          '"type":{"type":"emoji","emoji":"❤️"},' +
-          '"total_count":3' +
-        '}]' +
-      '}' +
-    '}';
-var
-  aUpdateObj: TTelegramUpdateObj;
-  aReactionCountUpdate: TTelegramMessageReactionCountUpdated;
-  aJSONData: TJSONData;
-begin
-  aJSONData:=GetJSON(ReactionCountUpdateJSON);
-  try
-    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
-    try
-      AssertEquals(Ord(utMessageReactionCount), Ord(aUpdateObj.UpdateType));
-      aReactionCountUpdate:=aUpdateObj.MessageReactionCount;
-      AssertNotNull('MessageReactionCount should be assigned', aReactionCountUpdate);
-      AssertEquals(123, aReactionCountUpdate.Chat.ID);
-      AssertEquals(10, aReactionCountUpdate.MessageID);
-      AssertEquals(1, aReactionCountUpdate.Reactions.Count);
-      AssertEquals(3, aReactionCountUpdate.Reactions[0].TotalCount);
-      AssertEquals(Ord(rtReactionTypeEmoji), Ord(aReactionCountUpdate.Reactions[0].ReactionType.TypeEnum));
-      AssertEquals('❤️', aReactionCountUpdate.Reactions[0].ReactionType.Emoji);
-    finally
-      aUpdateObj.Free;
-    end;
-  finally
-    aJSONData.Free;
-  end;
-end;
-
-{ TTestMessageQuote }
-
-procedure TTestMessageQuote.ParseMessageQuote;
-const
-  MessageWithQuoteJSON =
-    '{' +
-      '"update_id":1002,' +
-      '"message":{' +
-        '"message_id":55,' +
-        '"date":1700000200,' +
-        '"chat":{"id":77,"type":"private","first_name":"Test"},' +
-        '"from":{"id":88,"is_bot":false,"first_name":"Alice"},' +
-        '"text":"Reply with quote",' +
-        '"quote":{' +
-          '"position":6,' +
-          '"text":"quoted",' +
-          '"is_manual":true,' +
-          '"entities":[{"type":"bold","offset":0,"length":6}]' +
-        '}' +
-      '}' +
-    '}';
-var
-  aUpdateObj: TTelegramUpdateObj;
-  aMessage: TTelegramMessageObj;
-  aJSONData: TJSONData;
-begin
-  aJSONData:=GetJSON(MessageWithQuoteJSON);
-  try
-    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
-    try
-      AssertEquals(Ord(utMessage), Ord(aUpdateObj.UpdateType));
-      aMessage:=aUpdateObj.Message;
-      AssertNotNull('Message should be assigned', aMessage);
-      AssertNotNull('Quote should be assigned', aMessage.Quote);
-      AssertEquals(6, aMessage.Quote.Position);
-      AssertEquals('quoted', aMessage.Quote.Text);
-      AssertTrue('Quote.IsManual should be True', aMessage.Quote.IsManual);
-      AssertEquals(1, aMessage.Quote.Entities.Count);
-      AssertEquals('bold', aMessage.Quote.Entities[0].TypeEntity);
-      AssertEquals(0, aMessage.Quote.Entities[0].Offset);
-      AssertEquals(6, aMessage.Quote.Entities[0].Length);
-    finally
-      aUpdateObj.Free;
-    end;
-  finally
-    aJSONData.Free;
-  end;
-end;
-
-procedure TTestMessageQuote.ParseMessageExternalReply;
-const
-  MessageWithExternalReplyJSON =
-    '{' +
-      '"update_id":1003,' +
-      '"message":{' +
-        '"message_id":56,' +
-        '"date":1700000300,' +
-        '"chat":{"id":77,"type":"private","first_name":"Test"},' +
-        '"from":{"id":88,"is_bot":false,"first_name":"Alice"},' +
-        '"text":"Reply to external message",' +
-        '"external_reply":{' +
-          '"origin":{' +
-            '"type":"user",' +
-            '"date":1700000290,' +
-            '"sender_user":{"id":99,"is_bot":false,"first_name":"Bob"}' +
-          '}' +
-        '}' +
-      '}' +
-    '}';
-var
-  aUpdateObj: TTelegramUpdateObj;
-  aMessage: TTelegramMessageObj;
-  aJSONData: TJSONData;
-begin
-  aJSONData:=GetJSON(MessageWithExternalReplyJSON);
-  try
-    aUpdateObj:=TTelegramUpdateObj.Create(aJSONData as TJSONObject);
-    try
-      AssertEquals(Ord(utMessage), Ord(aUpdateObj.UpdateType));
-      aMessage:=aUpdateObj.Message;
-      AssertNotNull('Message should be assigned', aMessage);
-      AssertNotNull('ExternalReply should be assigned', aMessage.ExternalReply);
-      AssertTrue('ExternalReply JSON should contain origin type',
-        Pos('"type" : "user"', aMessage.ExternalReply.AsString)>0);
-    finally
-      aUpdateObj.Free;
-    end;
-  finally
-    aJSONData.Free;
-  end;
-end;
-
-{ TTestSenderTypes }
-
-procedure TTestSenderTypes.KeyboardButtonsStyle;
-var
-  aReplyMarkup: TReplyMarkup;
-  aReplyButtons: TKeyboardButtons;
-  aInlineButtons: TInlineKeyboardButtons;
-  aReplyButton: TKeyboardButton;
-  aInlineButton: TInlineKeyboardButton;
-begin
-  aReplyMarkup:=TReplyMarkup.Create;
-  try
-    aReplyButtons:=aReplyMarkup.CreateReplyKeyboard.Add;
-    aReplyButton:=TKeyboardButton.Create('Reply button');
-    aReplyButton.Style:='primary';
-    aReplyButtons.Add(aReplyButton);
-
-    aInlineButtons:=aReplyMarkup.CreateInlineKeyBoard.Add;
-    aInlineButton:=TInlineKeyboardButton.Create('Inline button');
-    aInlineButton.Callback_Data:='cb';
-    aInlineButton.Style:='secondary';
-    aInlineButtons.Add(aInlineButton);
-
-    AssertEquals('primary', aReplyButton.Style);
-    AssertEquals('secondary', aInlineButton.Style);
-    AssertTrue('Reply keyboard JSON should contain style', Pos('"style" : "primary"', aReplyMarkup.AsJSON)>0);
-    AssertTrue('Inline keyboard JSON should contain style', Pos('"style" : "secondary"', aReplyMarkup.AsJSON)>0);
-  finally
-    aReplyMarkup.Free;
-  end;
-end;
-
 { TTestSender }
 
 procedure TTestSender.SetUp;
@@ -515,7 +289,7 @@ begin
   FUrl:=Conf.ReadString('Send', 'Url', EmptyStr);
   FVideoFile:=Conf.ReadString('Send', 'VideoFile', EmptyStr);
   FPhotoUrl:=Conf.ReadString('Send', 'photourl', EmptyStr);
-  FPhotoFile:=Conf.ReadString('Send', 'PhotoFile', EmptyStr); 
+  FPhotoFile:=Conf.ReadString('Send', 'PhotoFile', EmptyStr);
   FJSONMediaGroup:=Conf.ReadString('Send', 'JSONMediaGroup', EmptyStr);
 end;
 
@@ -565,7 +339,7 @@ begin
   try
     Buttons:=ReplyMarkup.CreateReplyKeyboard.Add;
     i:=Buttons.AddButton('Send location');
-    Buttons.Buttons[i].RequestLocation:=True;    
+    Buttons.Buttons[i].RequestLocation:=True;
     i:=Buttons.AddButton('Send contact');
     Buttons.Buttons[i].RequestContact:=True;
     if not Bot.sendMessage(ChatID, Format(Msg_md, [Self.ClassName, TestName]), pmMarkdown,
@@ -832,7 +606,10 @@ begin
 end;
 
 initialization
-  RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
-    TTestPayments, TTestReactionUpdates, TTestMessageQuote, TTestSenderTypes]);
+  { Integration tests require a configured bot: register them only in this case.
+    Otherwise (for example, in CI) only the unit tests are run }
+  if TTestTelegramClass.Configured then
+    RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
+      TTestPayments]);
 
 end.

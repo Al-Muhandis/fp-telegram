@@ -10,6 +10,7 @@ uses
 type
 
   { TTestTelegramBase }
+  { Base class for the integration tests: reads the testtelegram.ini configuration }
 
   TTestTelegramBase= class(TTestCase)
   private
@@ -23,6 +24,9 @@ type
   end;
 
   { TTestTelegramClass }
+  { Base class for the integration tests working with a real bot.
+    The tests are registered only when the bot token and chat ID are configured,
+    see class function Configured }
 
   TTestTelegramClass= class(TTestTelegramBase)
   private
@@ -35,6 +39,10 @@ type
     property Bot: TTelegramSender read FBot;
     property ChatID: Int64 read FChatID;
     property UserID: Int64 read FUserID;
+  public
+    { True when testtelegram.ini contains both the bot token and the chat ID.
+      Integration tests must be registered only if it is True }
+    class function Configured: Boolean;
   end;
 
 implementation
@@ -44,6 +52,22 @@ uses
   ;
 
 { TTestTelegramClass }
+
+class function TTestTelegramClass.Configured: Boolean;
+var
+  lConf: TMemIniFile;
+begin
+  Result:=False;
+  if not FileExists('testtelegram.ini') then
+    Exit;
+  lConf:=TMemIniFile.Create('testtelegram.ini');
+  try
+    Result:=(lConf.ReadString('Bot', 'Token', EmptyStr)<>EmptyStr) and
+      (lConf.ReadInt64('Chat', 'ID', 0)<>0);
+  finally
+    lConf.Free;
+  end;
+end;
 
 procedure TTestTelegramClass.SetUp;
 begin
@@ -111,4 +135,3 @@ begin
 end;
 
 end.
-

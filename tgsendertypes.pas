@@ -475,8 +475,9 @@ type
     FRequestBody: String;
     FToken: String;
     FRequestWhenAnswer: Boolean;
-    FCommandHandlers: TCommandHandlersMap; 
+    FCommandHandlers: TCommandHandlersMap;
     FChannelCommandHandlers: TCommandHandlersMap;
+    FHTTPClientClass: TBaseClientClass;
     FUpdateID: Integer;
     FUpdateLogger: TtgStatLog;
     FUpdateProcessed: Boolean;
@@ -487,15 +488,28 @@ type
     procedure AssignHTTProxy(aHTTPClient: TBaseHTTPClient);
     function CurrentLanguage(AUser: TTelegramUserObj): String;
     function CurrentLanguage(AMessage: TTelegramMessageObj): String;
+    { Creates an HTTP client for one request: the injected HTTPClientClass if set,
+      otherwise the globally registered one; proxy settings and timeout are applied }
+    function CreateHTTPClient: TBaseHTTPClient;
     function GetAPIEndPoint: String;
     function GetChannelCommandHandlers(const Command: String): TCommandEvent;
     function GetCommandHandlers(const Command: String): TCommandEvent;
+    function GetHTTPClientClass: TBaseClientClass;
     function GetTimeout: Integer;
     procedure SetAPIEndPoint(AValue: String);
     procedure SetBotUsername(AValue: String);
     procedure SetChannelCommandHandlers(const Command: String;
       AValue: TCommandEvent);
     procedure SetCommandHandlers(const Command: String; AValue: TCommandEvent);
+    procedure SetCurrentMessageContext(AMessage: TTelegramMessageObj);
+    procedure SetCurrentUserContext(AUser: TTelegramUserObj);
+    procedure SetHTTPClientClass(AValue: TBaseClientClass);
+    { Common part after a successful HTTP request: parses the response,
+      updates LastError* and JSONResponse. Returns False on API error.
+      An empty response (long polling timeout) is considered successful }
+    function CheckResponse(const AMethod: String): Boolean;
+    procedure DoAfterParseAndDetectLanguage(AUser: TTelegramUserObj);
+    procedure DoAfterParseAndDetectLanguage(AMessage: TTelegramMessageObj);
     function HTTPPostFile(const Method, FileField, FileName: String; AFormData: TStrings): Boolean;
     function HTTPPostFiles(const Method: String; aFormData, aFiles: TStrings): Boolean;
     function HTTPPostJSON(const Method: String): Boolean;
@@ -690,6 +704,10 @@ type
       aParseMode: TParseMode =pmDefault; aReplyMarkup: TReplyMarkup = nil): Boolean;
     function getChatAdministrators(chat_id: Int64; out aChatMembers: TJSONArray): Boolean;
     property APIEndPoint: String read GetAPIEndPoint write SetAPIEndPoint;
+    { Optional injection point for tests and custom transports: the class of HTTP client
+      used for API requests. If not set, the globally registered client class is used
+      (see TBaseHTTPClient.RegisterClientClass) }
+    property HTTPClientClass: TBaseClientClass read GetHTTPClientClass write SetHTTPClientClass;
     property BotUser: TTelegramUserObj read FBotUser;
     property JSONResponse: TJSONData read FJSONResponse write SetJSONResponse;
     { Current chat_id that was received when processing the last update from the telegram server }
@@ -865,7 +883,7 @@ const
   s_Style = 'style';
   s_SwitchInlineQuery = 'switch_inline_query';
   s_CallbackData = 'callback_data';
-  s_SwitchInlineQueryCurrentChat = 's_switch_inline_query_current_chat';
+  s_SwitchInlineQueryCurrentChat = 'switch_inline_query_current_chat';
   s_Selective = 'selective';
   s_InputFieldPlaceholder = 'input_field_placeholder';
   s_ForceReply = 'force_reply';
@@ -1575,7 +1593,7 @@ end;
 
 procedure TInlineQueryResult.SetMpeg4Width(AValue: Integer);
 begin
-  Integers[s_Mpeg4Height]:=AValue;
+  Integers[s_Mpeg4Width]:=AValue;
 end;
 
 procedure TInlineQueryResult.SetParseMode(AValue: TParseMode);
@@ -1706,7 +1724,7 @@ end;
 
 function TKeyboardButton.GetStyle: String;
 begin
-  Result:=Strings[s_Style];
+  Result:=Get(s_Style, EmptyStr);
 end;
 
 procedure TKeyboardButton.SetRequestContact(AValue: Boolean);
@@ -1791,12 +1809,12 @@ end;
 
 function TReplyMarkup.GetForceReply: Boolean;
 begin
-  Result:=Booleans[s_ForceReply];
+  Result:=Get(s_ForceReply, False);
 end;
 
 function TReplyMarkup.GetInlineKeyBoard: TInlineKeyboard;
 begin
-  Result:=Arrays[s_InlineKeyboard] as TInlineKeyboard;
+  Result:=Find(s_InlineKeyboard, jtArray) as TInlineKeyboard;
 end;
 
 function TReplyMarkup.GetInputFieldPlaceholder: String;
@@ -1816,7 +1834,7 @@ end;
 
 function TReplyMarkup.GetReplyKeyboardMarkup: TKeyboardButtonArray;
 begin
-  Result:=Arrays[s_Keyboard] as TKeyboardButtonArray;
+  Result:=Find(s_Keyboard, jtArray) as TKeyboardButtonArray;
 end;
 
 function TReplyMarkup.GetResizeKeyboard: Boolean;
@@ -1859,7 +1877,13 @@ end;
 
 procedure TReplyMarkup.SetRemoveKeyboard(AValue: Boolean);
 begin
-  Booleans[s_RemoveKeyboard]:=AValue;
+  if not AValue then
+  begin
+    if IndexOfName(s_RemoveKeyboard)>-1 then
+      Delete(s_RemoveKeyboard);
+  end
+  else
+    Booleans[s_RemoveKeyboard]:=True;
 end;
 
 procedure TReplyMarkup.SetReplyKeyboardMarkup(AValue: TKeyboardButtonArray);
@@ -1880,15 +1904,76 @@ begin
   Booleans[s_Selective]:=AValue;
 end;
 
+{ Build a typed keyboard row (TInlineKeyboardButtons or TKeyboardButtons) from
+  a JSON row so the typed accessors work on a markup created from JSON }
+
+function KeyboardButtonsFromJSON(aSrcRow: TJSONArray; aInline: Boolean): TJSONArray;
+var
+  J, K: Integer;
+  lBtnSrc, lBtn: TJSONObject;
+begin
+  if aInline then
+    Result:=TInlineKeyboardButtons.Create
+  else
+    Result:=TKeyboardButtons.Create;
+  try
+    for J:=0 to aSrcRow.Count-1 do
+    begin
+      if aSrcRow.Items[J].JSONType<>jtObject then
+        continue;
+      lBtnSrc:=aSrcRow.Objects[J];
+      if aInline then
+        lBtn:=TInlineKeyboardButton.Create(lBtnSrc.Get(s_text, EmptyStr))
+      else
+        lBtn:=TKeyboardButton.Create(lBtnSrc.Get(s_text, EmptyStr));
+      for K:=0 to lBtnSrc.Count-1 do
+        if lBtnSrc.Names[K]<>s_text then
+          lBtn.Add(lBtnSrc.Names[K], lBtnSrc.Items[K].Clone);
+      Result.Add(lBtn);
+    end;
+  except
+    Result.Free;
+    Raise;
+  end;
+end;
+
+function KeyboardFromJSON(aSrc: TJSONArray; aInline: Boolean): TJSONArray;
+var
+  I: Integer;
+begin
+  if aInline then
+    Result:=TInlineKeyboard.Create
+  else
+    Result:=TKeyboardButtonArray.Create;
+  try
+    for I:=0 to aSrc.Count-1 do
+      if aSrc.Items[I].JSONType=jtArray then
+        Result.Add(KeyboardButtonsFromJSON(aSrc.Arrays[I], aInline));
+  except
+    Result.Free;
+    Raise;
+  end;
+end;
+
 class function TReplyMarkup.CreateFromObject(aObject: TJSONObject
   ): TReplyMarkup;
 Var
   I: Integer;
+  lName: String;
 begin
   Result:=TReplyMarkup.Create;
   try
     For I:=0 to aObject.Count-1 do
-      Result.Add(aObject.Names[I],aObject.Items[I].Clone);
+    begin
+      lName:=aObject.Names[I];
+      { Keyboards are converted to the typed classes so the InlineKeyBoard and
+        ReplyKeyboardMarkup properties work on the created markup }
+      if (aObject.Items[I].JSONType=jtArray) and
+        ((lName=s_InlineKeyboard) or (lName=s_Keyboard)) then
+        Result.Add(lName, KeyboardFromJSON(aObject.Arrays[lName], lName=s_InlineKeyboard))
+      else
+        Result.Add(lName, aObject.Items[I].Clone);
+    end;
   except
     FreeAndNil(Result);
     Raise;
@@ -1939,12 +2024,12 @@ end;
 
 function TInlineKeyboardButton.Geturl: String;
 begin
-  Result:=Strings[s_url];
+  Result:=Get(s_url, EmptyStr);
 end;
 
 function TInlineKeyboardButton.GetStyle: String;
 begin
-  Result:=Strings[s_Style];
+  Result:=Get(s_Style, EmptyStr);
 end;
 
 function TInlineKeyboardButton.CheckOptnlNull: Boolean;
@@ -1966,17 +2051,17 @@ end;
 
 function TInlineKeyboardButton.Getcallback_data: String;
 begin
-  Result:=Strings[s_callbackdata];
+  Result:=Get(s_callbackdata, EmptyStr);
 end;
 
 function TInlineKeyboardButton.Getswitch_inline_query: String;
 begin
-  Result:=Strings[s_SwitchInlineQuery];
+  Result:=Get(s_SwitchInlineQuery, EmptyStr);
 end;
 
 function TInlineKeyboardButton.Getswitch_inline_query_current_chat: String;
 begin
-  Result:=Strings[s_SwitchInlineQueryCurrentChat];
+  Result:=Get(s_SwitchInlineQueryCurrentChat, EmptyStr);
 end;
 
 function TInlineKeyboardButton.Gettext: String;
@@ -2019,7 +2104,7 @@ begin
     aOptions:=DefaultOptions;
     { See https://github.com/Al-Muhandis/fp-telegram/issues/4 about this compiler key.
       You can add -dJsonNoUTF8 compiler key to the project for avoiding the problem mentioned in the issue above}
-    {$ifdef JsonNoUTF8}Exclude(Options,joUTF8);{$endif}
+    {$ifdef JsonNoUTF8}Exclude(aOptions,joUTF8);{$endif}
     lParser := TJSONParser.Create(AString{$IF FPC_FULLVERSION > 30002}, aOptions{$ENDIF});
     try
       try
@@ -2142,17 +2227,10 @@ end;
 
 procedure TTelegramSender.DoReceiveMessageUpdate(AMessage: TTelegramMessageObj);
 begin
-  FCurrentMessage:=AMessage;
-  FCurrentChatID:=AMessage.ChatId;
-  FCurrentThreadId:=AMessage.MessageThreadID;
-  FCurrentIsTopicMessage:=AMessage.IsTopicMessage;
-  FCurrentChat:=AMessage.Chat;
-  FCurrentUser:=AMessage.From;
+  SetCurrentMessageContext(AMessage);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AMessage));
+  DoAfterParseAndDetectLanguage(AMessage);
   ProcessCommands(AMessage, FCommandHandlers);
   if Assigned(AMessage.SuccessfulPayment) and not FUpdateProcessed then
     DoReceiveSuccessfulPayment(AMessage);
@@ -2162,17 +2240,10 @@ end;
 
 procedure TTelegramSender.DoReceiveEditedMessage(AMessage: TTelegramMessageObj);
 begin
-  FCurrentMessage:=AMessage;
-  FCurrentChatID:=AMessage.ChatId;
-  FCurrentThreadId:=AMessage.MessageThreadID;
-  FCurrentIsTopicMessage:=AMessage.IsTopicMessage;
-  FCurrentChat:=AMessage.Chat;
-  FCurrentUser:=AMessage.From;
+  SetCurrentMessageContext(AMessage);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AMessage));
+  DoAfterParseAndDetectLanguage(AMessage);
   ProcessCommands(AMessage, FCommandHandlers);
   if Assigned(FOnReceiveEditedMessage) then
     FOnReceiveEditedMessage(Self, AMessage);
@@ -2192,26 +2263,17 @@ begin
   if Assigned(FCurrentMessage) then
     if Assigned(FCurrentMessage.From) then
       FBotUsername:=FCurrentMessage.From.Username;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(ACallback.From));
+  DoAfterParseAndDetectLanguage(ACallback.From);
   if Assigned(FOnReceiveCallbackQuery) then
     FOnReceiveCallbackQuery(Self, ACallback);
 end;
 
 procedure TTelegramSender.DoReceiveChannelPost(AChannelPost: TTelegramMessageObj);
 begin
-  FCurrentMessage:=AChannelPost;
-  FCurrentChat:=AChannelPost.Chat;
-  FCurrentChatID:=AChannelPost.ChatId;  
-  FCurrentThreadId:=AChannelPost.MessageThreadID;
-  FCurrentIsTopicMessage:=AChannelPost.IsTopicMessage;
-  FCurrentUser:=AChannelPost.From;
+  SetCurrentMessageContext(AChannelPost);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AChannelPost));
+  DoAfterParseAndDetectLanguage(AChannelPost);
   ProcessCommands(AChannelPost, FChannelCommandHandlers);
   if Assigned(FOnReceiveChannelPost) then
     FOnReceiveChannelPost(Self, AChannelPost);
@@ -2219,36 +2281,22 @@ end;
 
 procedure TTelegramSender.DoReceiveEditedChannelPost(AChannelPost: TTelegramMessageObj);
 begin
-  FCurrentMessage:=AChannelPost;
-  FCurrentChat:=AChannelPost.Chat;
-  FCurrentChatID:=AChannelPost.ChatId;  
-  FCurrentThreadId:=AChannelPost.MessageThreadID;
-  FCurrentIsTopicMessage:=AChannelPost.IsTopicMessage;
-  FCurrentUser:=AChannelPost.From;
+  SetCurrentMessageContext(AChannelPost);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AChannelPost));
+  DoAfterParseAndDetectLanguage(AChannelPost);
   ProcessCommands(AChannelPost, FChannelCommandHandlers);
   if Assigned(FOnReceiveEditedChannelPost) then
-    FOnReceiveChannelPost(Self, AChannelPost);
+    FOnReceiveEditedChannelPost(Self, AChannelPost);
 end;
 
 procedure TTelegramSender.DoReceiveInlineQuery(
   AnInlineQuery: TTelegramInlineQueryObj);
 begin
-  FCurrentMessage:=nil;
-  FCurrentChat:=nil;
-  FCurrentChatID:=AnInlineQuery.From.ID;
-  FCurrentThreadId:=_nullThrd;
-  FCurrentIsTopicMessage:=False;
-  FCurrentUser:=AnInlineQuery.From;
+  SetCurrentUserContext(AnInlineQuery.From);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AnInlineQuery.From));
+  DoAfterParseAndDetectLanguage(AnInlineQuery.From);
   if Assigned(FOnReceiveInlineQuery) then
     FOnReceiveInlineQuery(Self, AnInlineQuery);
 end;
@@ -2256,17 +2304,10 @@ end;
 procedure TTelegramSender.DoReceiveChosenInlineResult(
   AChosenInlineResult: TTelegramChosenInlineResultObj);
 begin
-  FCurrentMessage:=nil;
-  FCurrentChat:=nil;
-  FCurrentChatID:=AChosenInlineResult.From.ID; 
-  FCurrentThreadId:=_nullThrd;
-  FCurrentIsTopicMessage:=False;
-  FCurrentUser:=AChosenInlineResult.From;
+  SetCurrentUserContext(AChosenInlineResult.From);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(AChosenInlineResult.From));
+  DoAfterParseAndDetectLanguage(AChosenInlineResult.From);
   if Assigned(FOnReceiveChosenInlineResult) then
     FOnReceiveChosenInlineResult(Self, AChosenInlineResult);
 end;
@@ -2274,15 +2315,10 @@ end;
 procedure TTelegramSender.DoReceivePreCheckoutQuery(
   APreCheckoutQuery: TTelegramPreCheckOutQuery);
 begin
-  FCurrentUser:=APreCheckoutQuery.From;
-  FCurrentChatID:=FCurrentUser.ID; 
-  FCurrentThreadId:=_nullThrd;
-  FCurrentIsTopicMessage:=False;
+  SetCurrentUserContext(APreCheckoutQuery.From);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(APreCheckoutQuery.From));
+  DoAfterParseAndDetectLanguage(APreCheckoutQuery.From);
   if Assigned(FOnReceivePreCheckoutQuery) then
     FOnReceivePreCheckoutQuery(Self, APreCheckoutQuery);
 end;
@@ -2296,10 +2332,8 @@ begin
   FCurrentIsTopicMessage:=False;
   FCurrentChatId:=FCurrentUser.ID;
   if CurrentIsBanned then
-    Exit;                          
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(FCurrentUser));
+    Exit;
+  DoAfterParseAndDetectLanguage(FCurrentUser);
   if Assigned(FOnReceiveMyChatMemberUpdated) then
     FOnReceiveMyChatMemberUpdated(Self, AMyChatMember);
 end;
@@ -2314,9 +2348,7 @@ begin
   FCurrentChatId:=FCurrentUser.ID;
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(FCurrentUser));
+  DoAfterParseAndDetectLanguage(FCurrentUser);
   if Assigned(FOnReceiveChatMemberUpdated) then
     FOnReceiveChatMemberUpdated(Self, AChatMember);
 end;
@@ -2376,17 +2408,10 @@ end;
 
 procedure TTelegramSender.DoReceiveBusinessMessage(ABusinessMessage: TTelegramMessageObj);
 begin
-  FCurrentMessage:=ABusinessMessage;
-  FCurrentChatID:=ABusinessMessage.ChatId;
-  FCurrentThreadId:=ABusinessMessage.MessageThreadID;   // ? I think no need but...
-  FCurrentIsTopicMessage:=ABusinessMessage.IsTopicMessage;
-  FCurrentChat:=ABusinessMessage.Chat;
-  FCurrentUser:=ABusinessMessage.From;
+  SetCurrentMessageContext(ABusinessMessage);
   if CurrentIsBanned then
     Exit;
-  DoAfterParseUpdate;
-  if FLanguage=EmptyStr then
-    SetLanguage(CurrentLanguage(ABusinessMessage));
+  DoAfterParseAndDetectLanguage(ABusinessMessage);
   ProcessCommands(ABusinessMessage, FCommandHandlers);
   if Assigned(ABusinessMessage.SuccessfulPayment) and not FUpdateProcessed then
     DoReceiveSuccessfulPayment(ABusinessMessage);
@@ -2588,6 +2613,72 @@ begin
   Result:=IsBotUser(FCurrentChatId);
 end;
 
+function TTelegramSender.GetHTTPClientClass: TBaseClientClass;
+begin
+  if Assigned(FHTTPClientClass) then
+    Result:=FHTTPClientClass
+  else
+    Result:=TBaseHTTPClient.GetClientClass;
+end;
+
+procedure TTelegramSender.SetHTTPClientClass(AValue: TBaseClientClass);
+begin
+  FHTTPClientClass:=AValue;
+end;
+
+function TTelegramSender.CreateHTTPClient: TBaseHTTPClient;
+begin
+  Result:=GetHTTPClientClass.Create(nil);
+  AssignHTTProxy(Result);
+  Result.IOTimeout:=FTimeout;
+end;
+
+function TTelegramSender.CheckResponse(const AMethod: String): Boolean;
+begin
+  Result:=True;
+  if FResponse=EmptyStr then  // longpolling timeout: no updates
+    Exit;
+  if not ResponseHandle then
+  begin
+    Result:=False;
+    ErrorMessage('Error request ['+AMethod+']: '+FResponse);
+  end;
+end;
+
+procedure TTelegramSender.DoAfterParseAndDetectLanguage(AUser: TTelegramUserObj);
+begin
+  DoAfterParseUpdate;
+  if FLanguage=EmptyStr then
+    SetLanguage(CurrentLanguage(AUser));
+end;
+
+procedure TTelegramSender.DoAfterParseAndDetectLanguage(AMessage: TTelegramMessageObj);
+begin
+  DoAfterParseUpdate;
+  if FLanguage=EmptyStr then
+    SetLanguage(CurrentLanguage(AMessage));
+end;
+
+procedure TTelegramSender.SetCurrentMessageContext(AMessage: TTelegramMessageObj);
+begin
+  FCurrentMessage:=AMessage;
+  FCurrentChatID:=AMessage.ChatId;
+  FCurrentThreadId:=AMessage.MessageThreadID;
+  FCurrentIsTopicMessage:=AMessage.IsTopicMessage;
+  FCurrentChat:=AMessage.Chat;
+  FCurrentUser:=AMessage.From;
+end;
+
+procedure TTelegramSender.SetCurrentUserContext(AUser: TTelegramUserObj);
+begin
+  FCurrentMessage:=nil;
+  FCurrentChat:=nil;
+  FCurrentChatID:=AUser.ID;
+  FCurrentThreadId:=_nullThrd;
+  FCurrentIsTopicMessage:=False;
+  FCurrentUser:=AUser;
+end;
+
 function TTelegramSender.HTTPPostFile(const Method, FileField, FileName: String;
   AFormData: TStrings): Boolean;
 var
@@ -2597,11 +2688,9 @@ begin
   Result:=False;
   JSONResponse:=nil;
   FResponse:=EmptyStr;
-  HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
-  AssignHTTProxy(HTTP);
+  HTTP:=CreateHTTPClient;
   AStream:=TStringStream.Create(EmptyStr);
   try
-    HTTP.IOTimeout:=FTimeout;
     try
       HTTP.AddHeader('Content-Type','multipart/form-data');
       HTTP.FileFormPost(APIEndPoint+FToken+'/'+Method, AFormData, FileField, FileName, AStream);
@@ -2623,10 +2712,8 @@ begin
   Result:=False;
   JSONResponse:=nil;
   FResponse:=EmptyStr;
-  HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
-  AssignHTTProxy(HTTP);
+  HTTP:=CreateHTTPClient;
   try
-    HTTP.IOTimeout:=FTimeout;
     try
       FResponse:=HTTP.FilesFormPost(APIEndPoint+FToken+'/'+Method, aFormData, aFiles);
       Result:=True;
@@ -2643,14 +2730,12 @@ var
   HTTP: TBaseHTTPClient;
 begin
   Result:=False;
-  HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
-  AssignHTTProxy(HTTP);
+  HTTP:=CreateHTTPClient;
   try
-    HTTP.IOTimeout:=FTimeout;
     HTTP.RequestBody:=TStringStream.Create(FRequestBody);
     try
       HTTP.AddHeader('Content-Type','application/json');
-      FResponse:=HTTP.Post(FAPIEndPoint+FToken+'/'+Method);
+      FResponse:=HTTP.Post(APIEndPoint+FToken+'/'+Method);
     finally
       HTTP.RequestBody.Free;
       HTTP.RequestBody:=nil;
@@ -2670,20 +2755,24 @@ var
   HTTP: TBaseHTTPClient;
   AStringStream: TStringStream;
 begin
-  HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
-  AssignHTTProxy(HTTP);
+  Result:=False;
+  JSONResponse:=nil;
+  FResponse:=EmptyStr;
+  HTTP:=CreateHTTPClient;
   AStringStream:=TStringStream.Create(EmptyStr);
   try
-    HTTP.IOTimeout:=FTimeout;
-    HTTP.AddHeader('Content-Type','multipart/form-data');
-    HTTP.StreamFormPost(FAPIEndPoint+FToken+'/'+Method, AFormData, FileField, FileName, AStream, AStringStream);
-    FResponse:=AStringStream.DataString;
-    Result:=True;
-  except
-    Result:=False;
+    try
+      HTTP.AddHeader('Content-Type','multipart/form-data');
+      HTTP.StreamFormPost(APIEndPoint+FToken+'/'+Method, AFormData, FileField, FileName, AStream, AStringStream);
+      FResponse:=AStringStream.DataString;
+      Result:=True;
+    except
+      Result:=False;
+    end;
+  finally
+    AStringStream.Free;
+    HTTP.Free;
   end;
-  AStringStream.Free;
-  HTTP.Free;
 end;
 
 function TTelegramSender.HTTPPostStreams(const Method: String; aFormData,
@@ -2694,10 +2783,8 @@ begin
   Result:=False;
   JSONResponse:=nil;
   FResponse:=EmptyStr;
-  HTTP:=TBaseHTTPClient.GetClientClass.Create(nil);
-  AssignHTTProxy(HTTP);
+  HTTP:=CreateHTTPClient;
   try
-    HTTP.IOTimeout:=FTimeout;
     try
       FResponse:=HTTP.StreamsFormPost(APIEndPoint+FToken+'/'+Method, aFormData, aStreams);
       Result:=True;
@@ -2772,14 +2859,8 @@ begin
   DebugMessage('Request for method "'+AMethod+'": '+FRequestBody);
   DebugMessage('Sending file '+AFileName);
   try
-    Result:=HTTPPostFile(AMethod, AFileField, AFileName, MethodParameters);
-    if Result then
-      if FResponse<>EmptyStr then     // longpolling
-        if not ResponseHandle then
-        begin
-          Result:=False;
-          ErrorMessage('Error request: '+FResponse);
-        end;
+    Result:=HTTPPostFile(AMethod, AFileField, AFileName, MethodParameters) and
+      CheckResponse(AMethod);
     DebugMessage('Response: '+FResponse);
   except
     ErrorMessage('It is not succesful request to API! Request body: '+FRequestBody);
@@ -2792,14 +2873,7 @@ begin
   RequestBody:=MethodParameters.CommaText;
   DebugMessage('Request for method "'+AMethod+'": '+FRequestBody);
   try
-    Result:=HTTPPostFiles(AMethod, MethodParameters, AFiles);
-    if Result then
-      if FResponse<>EmptyStr then     // longpolling
-        if not ResponseHandle then
-        begin
-          Result:=False;
-          ErrorMessage('Error request: '+FResponse);
-        end;
+    Result:=HTTPPostFiles(AMethod, MethodParameters, AFiles) and CheckResponse(AMethod);
     DebugMessage('Response: '+FResponse);
   except
     ErrorMessage('It is not succesful request to API! Request body: '+FRequestBody);
@@ -2860,15 +2934,7 @@ begin
   begin
     RequestBody:=MethodParameters.AsJSON;
     DebugMessage('Request for method "'+Method+'": '+FRequestBody);
-    Result:=HTTPPostJson(Method);
-
-    if Result then
-      if FResponse<>EmptyStr then     // longpolling
-        if not ResponseHandle then
-        begin
-          Result:=False;
-          ErrorMessage('Error request: '+FResponse);
-        end;
+    Result:=HTTPPostJson(Method) and CheckResponse(Method);
   end
   else
   begin
@@ -2888,15 +2954,9 @@ begin
   DebugMessage('Request for method "'+AMethod+'": '+FRequestBody);
   DebugMessage('Sending file '+AFileName);
   try
-    Result:=HTTPPostStream(AMethod, AFileField, AFileName, AStream, MethodParameters);
+    Result:=HTTPPostStream(AMethod, AFileField, AFileName, AStream, MethodParameters) and
+      CheckResponse(AMethod);
     DebugMessage('Response: '+FResponse);
-    if Result then
-      if FResponse<>EmptyStr then     // longpolling
-        if not ResponseHandle then
-        begin
-          Result:=False;
-          ErrorMessage('Error request: '+FResponse);
-        end;
   except
     ErrorMessage('It is not succesful request to API! Request body: '+FRequestBody);
   end;
@@ -2909,14 +2969,7 @@ begin
   RequestBody:=MethodParameters.CommaText;
   DebugMessage('Request for method "'+AMethod+'": '+FRequestBody);
   try
-    Result:=HTTPPostStreams(AMethod, MethodParameters, AStreams);
-    if Result then
-      if FResponse<>EmptyStr then     // longpolling
-        if not ResponseHandle then
-        begin
-          Result:=False;
-          ErrorMessage('Error request: '+FResponse);
-        end;
+    Result:=HTTPPostStreams(AMethod, MethodParameters, AStreams) and CheckResponse(AMethod);
     DebugMessage('Response: '+FResponse);
   except
     ErrorMessage('It is not succesful request to API! Request body: '+FRequestBody);
@@ -3182,13 +3235,14 @@ var
   sendObj: TJSONObject;
 begin
   Result:=False;
+  aChat:=nil;
   sendObj:=TJSONObject.Create;
   with sendObj do
   try
     Add(s_ChatId, chat_id);
     Result:=SendMethod(s_getChat, sendObj);
     if Result and Assigned(JSONResponse) then
-      aChat:=TTelegramChatObj.CreateFromJSONObject(JSONResponse as TJSONObject) as TTelegramChatObj;;
+      aChat:=TTelegramChatObj.CreateFromJSONObject(JSONResponse as TJSONObject) as TTelegramChatObj;
   finally
     Free;
   end;
@@ -3213,6 +3267,7 @@ end;
 function TTelegramSender.getChatMember(chat_id: Int64; user_id: Int64; out
   aChatMember: TTelegramChatMember): Boolean;
 begin
+  aChatMember:=nil;
   Result:=getChatMember(chat_id, user_id);
   if Result then
     if Assigned(JSONResponse) then
@@ -4077,7 +4132,7 @@ begin
       if CorrectOptionID<>-1 then
         Add(s_CorrectOptionID, CorrectOptionID);
       if not Explanation.IsEmpty then
-        Add(s_Explanation);
+        Add(s_Explanation, Explanation);
       if explanation_parse_mode<>pmDefault then
         Add(s_ParseMode, ParseModes[explanation_parse_mode]);
       if Assigned(ReplyMarkup) then

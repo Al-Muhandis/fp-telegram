@@ -3,7 +3,8 @@ program gui;
 {$mode objfpc}{$H+}
 
 uses
-  Interfaces, Forms, GuiTestRunner, testtelegram, tgfclhttpclientbroker
+  Interfaces, Forms, GuiTestRunner, testtelegram, testtgtypes, testsendertypes,
+  testtgutils, testsendermock, tgfclhttpclientbroker
   ;
 
 {$R *.res}

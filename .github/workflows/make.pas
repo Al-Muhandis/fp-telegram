@@ -65,7 +65,11 @@ uses
   begin
     OutLog(etDebug, #9'Run test:'#9 + Path);
     if not RunCommand(Path, ['--all', '--format=plain'], ConsoleTestRunner, [poStderrToOutPut]) then
-      OutLog(etError, ConsoleTestRunner);
+      OutLog(etError, ConsoleTestRunner)
+    { The summary lines look like "Time:00.128 N:72 E:0 F:0 I:0": a non-zero
+      error/failure counter means the test run failed the build }
+    else if SelectString(ConsoleTestRunner, '[EF]:[1-9]') <> EmptyStr then
+      OutLog(etError, SelectString(ConsoleTestRunner, '(Failed:|Failure:|Error:)'));
   end;
 
   function AddLibrary(const Path: String): string; cdecl;
@@ -87,11 +91,12 @@ uses
     begin
       BuildProject := SelectString(BuildProject, 'Linking').Split(' ')[2].Replace(LineEnding, EmptyStr);
       OutLog(etInfo, #9'to:'#9 + BuildProject);
-      // Text := ReadFileToString(Path.Replace('.lpi', '.lpr'));
-      // if Text.Contains('program') and Text.Contains('consoletestrunner') then
-        // ConsoleTestRunner(BuildProject)
-      // else if Text.Contains('library') and Text.Contains('exports') then
-        // AddLibrary(BuildProject)
+      Text := ReadFileToString(Path.Replace('.lpi', '.lpr'));
+      { Console test runners are executed right after the build: the unit tests
+        run offline, the integration tests register themselves only when the
+        testtelegram.ini configuration is present }
+      if Text.Contains('program') and Text.Contains('consoletestrunner') then
+        ConsoleTestRunner(BuildProject);
     end
     else
       OutLog(etError, SelectString(BuildProject, '(Fatal|Error):'));

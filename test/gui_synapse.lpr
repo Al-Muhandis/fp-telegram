@@ -3,7 +3,8 @@ program gui_synapse;
 {$mode objfpc}{$H+}
 
 uses
-  Interfaces, Forms, GuiTestRunner, testtelegram, tgsynapsehttpclientbroker
+  Interfaces, Forms, GuiTestRunner, testtelegram, testtgtypes, testsendertypes,
+  testtgutils, testsendermock, tgsynapsehttpclientbroker
   ;
 
 {$R *.res}

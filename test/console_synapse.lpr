@@ -3,7 +3,8 @@ program console_synapse;
 {$mode objfpc}{$H+}
 
 uses
-  Classes, consoletestrunner, testtelegram, tgsynapsehttpclientbroker, ssl_openssl;
+  Classes, consoletestrunner, testtelegram, testtgtypes, testsendertypes,
+  testtgutils, testsendermock, tgsynapsehttpclientbroker, ssl_openssl;
 
 type
 
