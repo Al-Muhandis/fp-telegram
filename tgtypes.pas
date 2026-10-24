@@ -189,9 +189,15 @@ type
   public
     constructor Create(JSONObject: TJSONObject); override;
     function BlockCount: Integer;
+    { Raw block object by index (0-based); Nil when the index is out of range.
+      The block type is in its "type" member }
+    function Block(AIndex: Integer): TJSONObject;
     { Returns a newly created array with the clones of all RichMessageButton
       objects of the buttons blocks; free it after use. Nil if there are no buttons }
     function ExtractButtons: TJSONArray;
+    { Plain text of the whole message: the text of all RichText trees of the
+      blocks (the "text" and "caption" members) without any formatting }
+    function PlainText: String;
     property IsRTL: Boolean read FIsRTL;
   end;
 
@@ -1608,6 +1614,58 @@ begin
   inherited Destroy;
 end;
 
+{ RichText nodes can be a plain string, an array of nodes or an object
+  with the nested nodes in the "text" member }
+
+procedure AppendRichTextPlain(ANode: TJSONData; var AText: String);
+var
+  lEnum: TJSONEnum;
+  lObj: TJSONObject;
+begin
+  if not Assigned(ANode) then
+    Exit;
+  case ANode.JSONType of
+    jtString:
+      begin
+        if AText<>EmptyStr then
+          AText+=LineEnding;
+        AText+=ANode.AsString;
+      end;
+    jtArray:
+      for lEnum in (ANode as TJSONArray) do
+        AppendRichTextPlain(lEnum.Value, AText);
+    jtObject:
+      begin
+        lObj:=ANode as TJSONObject;
+        if lObj.Find('text')<>nil then
+          AppendRichTextPlain(lObj.Find('text'), AText)
+        else if lObj.Find('children', jtArray)<>nil then
+          AppendRichTextPlain(lObj.Find('children', jtArray), AText);
+      end;
+  end;
+end;
+
+procedure AppendBlockPlain(ABlock: TJSONObject; var AText: String);
+var
+  lEnum: TJSONEnum;
+begin
+  if not Assigned(ABlock) then
+    Exit;
+  if ABlock.Find('text')<>nil then
+    AppendRichTextPlain(ABlock.Find('text'), AText)
+  else if ABlock.Find('caption')<>nil then
+    AppendRichTextPlain(ABlock.Find('caption'), AText);
+  { containers: lists, quotations, details, tables, collages and so on }
+  if ABlock.Find('items', jtArray)<>nil then
+    for lEnum in (ABlock.Find('items', jtArray) as TJSONArray) do
+      if lEnum.Value.JSONType=jtObject then
+        AppendBlockPlain(lEnum.Value as TJSONObject, AText);
+  if ABlock.Find('blocks', jtArray)<>nil then
+    for lEnum in (ABlock.Find('blocks', jtArray) as TJSONArray) do
+      if lEnum.Value.JSONType=jtObject then
+        AppendBlockPlain(lEnum.Value as TJSONObject, AText);
+end;
+
 { TTelegramRichMessage }
 
 constructor TTelegramRichMessage.Create(JSONObject: TJSONObject);
@@ -1624,6 +1682,16 @@ begin
   lJSONArray:=fJSON.Find('blocks', jtArray) as TJSONArray;
   if Assigned(lJSONArray) then
     Result:=lJSONArray.Count;
+end;
+
+function TTelegramRichMessage.Block(AIndex: Integer): TJSONObject;
+var
+  lJSONArray: TJSONArray;
+begin
+  Result:=nil;
+  lJSONArray:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) and (AIndex>=0) and (AIndex<lJSONArray.Count) then
+    Result:=lJSONArray.Objects[AIndex];
 end;
 
 function TTelegramRichMessage.ExtractButtons: TJSONArray;
@@ -1651,6 +1719,20 @@ begin
       end;
     end;
   end;
+end;
+
+function TTelegramRichMessage.PlainText: String;
+var
+  lBlocks: TJSONArray;
+  lBlockEnum: TJSONEnum;
+begin
+  Result:=EmptyStr;
+  lBlocks:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if not Assigned(lBlocks) then
+    Exit;
+  for lBlockEnum in lBlocks do
+    if lBlockEnum.Value.JSONType=jtObject then
+      AppendBlockPlain(lBlockEnum.Value as TJSONObject, Result);
 end;
 
 function TTelegramMessageObj.ContentFromMessage(out aText: String; out aMedia: String): TContentType;

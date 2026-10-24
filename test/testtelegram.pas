@@ -44,7 +44,6 @@ type
   published
     procedure sendMessage;
     procedure InlineKeyboard;
-    procedure SendReplyKeyboard;
     procedure sendVideo;
     procedure sendVideoByFileName;
     procedure sendVideoStream;
@@ -67,6 +66,21 @@ type
     procedure sendRichMessageWithButtonsAndEdit;
     procedure sendPersistentKeyboard;
     procedure sendInlineCopyTextButton;
+    procedure sendChatActionTyping;
+    procedure pinAndUnpinMessage;
+    procedure getUserProfilePhotosTest;
+    procedure editMessageCaptionTest;
+  end;
+
+  { TTestSenderManual }
+  { Tests that need a human interaction or a private chat started with the bot:
+    registered only when [Manual] Enable=1 is set in testtelegram.ini }
+
+  TTestSenderManual = class(TTestSender)
+  published
+    { request_location/request_contact buttons are allowed in private chats only,
+      so the bot must have a chat with the user: press Start in the bot's private chat }
+    procedure SendReplyKeyboard;
   end;
 
   { TTestProxySender }
@@ -343,7 +357,7 @@ begin
       '. Description: '+Bot.LastErrorDescription);
 end;
 
-procedure TTestSender.SendReplyKeyboard;
+procedure TTestSenderManual.SendReplyKeyboard;
 var
   ReplyMarkup: TReplyMarkup;
   Buttons: TKeyboardButtons;
@@ -708,6 +722,64 @@ begin
   end;
 end;
 
+procedure TTestSender.sendChatActionTyping;
+begin
+  if not Bot.sendChatAction(ChatID, caTyping) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.pinAndUnpinMessage;
+var
+  aMessageID: Int64;
+begin
+  if not Bot.sendMessage(ChatID, 'Message to pin. Test: '+TestName) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  if not Bot.pinChatMessage(ChatID, aMessageID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  if not Bot.unpinChatMessage(ChatID, aMessageID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.getUserProfilePhotosTest;
+begin
+  { the user may have no photos: an empty result is still a success }
+  if not Bot.getUserProfilePhotos(UserID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.editMessageCaptionTest;
+var
+  aMessageID: Int64;
+begin
+  if not Bot.sendPhoto(ChatID, PhotoUrl, 'Caption before editing') then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  if not Bot.editMessageCaption(ChatID, aMessageID, 'Caption after editing') then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
 procedure TTestSender.sendInlineCopyTextButton;
 var
   aReplyMarkup: TReplyMarkup;
@@ -731,9 +803,15 @@ end;
 
 initialization
   { Integration tests require a configured bot: register them only in this case.
-    Otherwise (for example, in CI) only the unit tests are run }
+    Otherwise (for example, in CI) only the unit tests are run.
+    The manual tests additionally require a human interaction during the run
+    (a message sent to the bot, a test payment) or a private chat started with
+    the bot, so they are registered only when [Manual] Enable=1 is set }
   if TTestTelegramClass.Configured then
-    RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
-      TTestPayments]);
+  begin
+    RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender]);
+    if TTestTelegramClass.ManualEnabled then
+      RegisterTests([TTestSenderManual, TTestReceiveLongPolling, TTestPayments]);
+  end;
 
 end.

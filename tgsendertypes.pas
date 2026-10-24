@@ -751,6 +751,9 @@ type
   end;
 
   TPollType=(ptRegular, ptQuiz);
+  TChatAction = (caTyping, caUploadPhoto, caRecordVideo, caUploadVideo, caRecordVoice,
+    caUploadVoice, caUploadDocument, caChooseSticker, caFindLocation, caRecordVideoNote,
+    caUploadVideoNote);
 
   { TTelegramSender }
 
@@ -979,6 +982,48 @@ type
       parameter of editMessageText) }
     function editMessageTextRich(ARichMessage: TInputRichMessage; chat_id: Int64; message_id: Int64;
       inline_message_id: String = ''; ReplyMarkup: TReplyMarkup = nil): Boolean;
+    { Missing core API methods (all additive wrappers, the result is in JSONResponse) }
+    function sendChatAction(chat_id: Int64; AAction: TChatAction): Boolean;
+    function editMessageCaption(chat_id: Int64; message_id: Int64; const ACaption: String;
+      ParseMode: TParseMode = pmDefault; inline_message_id: String = '';
+      ReplyMarkup: TReplyMarkup = nil): Boolean;
+    function pinChatMessage(chat_id: Int64; message_id: Int64;
+      DisableNotification: Boolean = False): Boolean;
+    { message_id = 0 unpins all pinned messages except the pinned one sent by the bot itself }
+    function unpinChatMessage(chat_id: Int64; message_id: Int64 = 0): Boolean;
+    function unpinAllChatMessages(chat_id: Int64): Boolean;
+    function setMyDescription(const ADescription: String;
+      const ALanguageCode: String = ''): Boolean;
+    function setMyShortDescription(const ADescription: String;
+      const ALanguageCode: String = ''): Boolean;
+    function setMyName(const AName: String; const ALanguageCode: String = ''): Boolean;
+    function getUserProfilePhotos(user_id: Int64; Offset: Integer = 0;
+      Limit: Integer = 0): Boolean;
+    function deleteMessages(chat_id: Int64; const AMessageIDs: array of Int64): Boolean;
+    function forwardMessages(chat_id, from_chat_id: Int64; const AMessageIDs: array of Int64;
+      DisableNotification: Boolean = False): Boolean;
+    function copyMessages(chat_id, from_chat_id: Int64; const AMessageIDs: array of Int64;
+      DisableNotification: Boolean = False): Boolean;
+    { AMenuButton is a Bot API MenuButton object, for example
+      {"type":"default"} or {"type":"web_app","text":"App","web_app":{"url":"https://..."}} }
+    function setChatMenuButton(AMenuButton: TJSONObject; ChatID: Int64 = 0): Boolean;
+    function getChatMenuButton(ChatID: Int64 = 0): Boolean;
+    function getBusinessConnection(const ABusinessConnectionID: String): Boolean;
+    function answerWebAppQuery(const AWebAppQueryID: String;
+      AResult: TInlineQueryResult): Boolean;
+    { Administrator privileges; only the True flags are sent. Use restrictChatMember
+      or TJSONObject ChatPermissions for the member permissions }
+    function promoteChatMember(chat_id, user_id: Int64; CanManageChat: Boolean = False;
+      CanDeleteMessages: Boolean = False; CanManageVideoChats: Boolean = False;
+      CanRestrictMembers: Boolean = False; CanPromoteMembers: Boolean = False;
+      CanChangeInfo: Boolean = False; CanInviteUsers: Boolean = True;
+      CanPostStories: Boolean = False; CanEditStories: Boolean = False;
+      CanDeleteStories: Boolean = False; CanPostMessages: Boolean = False;
+      CanEditMessages: Boolean = False; CanPinMessages: Boolean = False;
+      CanManageTopics: Boolean = False; CanSendWelcomeMessages: Boolean = False): Boolean;
+    { APermissions is a Bot API ChatPermissions object; until_date = 0 means forever }
+    function restrictChatMember(chat_id, user_id: Int64; until_date: Int64;
+      APermissions: TJSONObject): Boolean;
     function sendMessage(chat_id: Int64; const AMessage: String; ParseMode: TParseMode = pmDefault;
       DisableWebPagePreview: Boolean=False; ReplyMarkup: TReplyMarkup = nil;
       ReplyToMessageID: Integer = 0; DisableNotification: Boolean = False; MessageThreadID: Integer = _nullThrd;
@@ -1365,6 +1410,53 @@ const
   s_Buttons='buttons';
   s_RichMessage='rich_message';
   s_SendRichMessage='sendRichMessage';
+
+//  Missing core API methods
+  s_SendChatAction='sendChatAction';
+  s_EditMessageCaption='editMessageCaption';
+  s_PinChatMessage='pinChatMessage';
+  s_UnpinChatMessage='unpinChatMessage';
+  s_UnpinAllChatMessages='unpinAllChatMessages';
+  s_SetMyDescription='setMyDescription';
+  s_SetMyShortDescription='setMyShortDescription';
+  s_SetMyName='setMyName';
+  s_GetUserProfilePhotos='getUserProfilePhotos';
+  s_DeleteMessages='deleteMessages';
+  s_ForwardMessages='forwardMessages';
+  s_CopyMessages='copyMessages';
+  s_SetChatMenuButton='setChatMenuButton';
+  s_GetChatMenuButton='getChatMenuButton';
+  s_GetBusinessConnection='getBusinessConnection';
+  s_AnswerWebAppQuery='answerWebAppQuery';
+  s_PromoteChatMember='promoteChatMember';
+  s_RestrictChatMember='restrictChatMember';
+
+  s_Action='action';
+  s_MessageIds='message_ids';
+  s_MenuButton='menu_button';
+  s_ShortDescription='short_description';
+  s_Name='name';
+  s_WebAppQueryID='web_app_query_id';
+  s_Permissions='permissions';
+  s_CanManageChat='can_manage_chat';
+  s_CanDeleteMessages='can_delete_messages';
+  s_CanManageVideoChats='can_manage_video_chats';
+  s_CanRestrictMembers='can_restrict_members';
+  s_CanPromoteMembers='can_promote_members';
+  s_CanChangeInfo='can_change_info';
+  s_CanInviteUsers='can_invite_users';
+  s_CanPostStories='can_post_stories';
+  s_CanEditStories='can_edit_stories';
+  s_CanDeleteStories='can_delete_stories';
+  s_CanPostMessages='can_post_messages';
+  s_CanEditMessages='can_edit_messages';
+  s_CanPinMessages='can_pin_messages';
+  s_CanManageTopics='can_manage_topics';
+  s_CanSendWelcomeMessages='can_send_welcome_messages';
+
+  ChatActions: array[TChatAction] of PChar = ('typing', 'upload_photo', 'record_video',
+    'upload_video', 'record_voice', 'upload_voice', 'upload_document', 'choose_sticker',
+    'find_location', 'record_video_note', 'upload_video_note');
 
   ParseModes: array[TParseMode] of PChar = ('', 'Markdown', 'HTML', 'MarkdownV2');
   MediaTypes: array[TMediaType] of PChar = ('photo', 'video', '');
@@ -5004,6 +5096,319 @@ begin
     Result:=SendMethod(s_editMessageText, sendObj);
   finally
     Free;
+  end;
+end;
+
+function TTelegramSender.sendChatAction(chat_id: Int64; AAction: TChatAction): Boolean;
+begin
+  Result:=SendMethod(s_SendChatAction, [s_ChatId, chat_id, s_Action, ChatActions[AAction]]);
+end;
+
+function TTelegramSender.editMessageCaption(chat_id: Int64; message_id: Int64;
+  const ACaption: String; ParseMode: TParseMode; inline_message_id: String;
+  ReplyMarkup: TReplyMarkup): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    if chat_id<>0 then
+      Add(s_ChatId, chat_id);
+    if message_id<>0 then
+      Add(s_MessageId, message_id);
+    if inline_message_id<>EmptyStr then
+      Add(s_InlineMessageId, inline_message_id);
+    Add(s_Caption, ACaption);
+    if ParseMode<>pmDefault then
+      Add(s_ParseMode, ParseModes[ParseMode]);
+    if Assigned(ReplyMarkup) then
+      Add(s_ReplyMarkup, ReplyMarkup.Clone); // Clone of ReplyMarkup object will have released with sendObject
+    Result:=SendMethod(s_EditMessageCaption, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.pinChatMessage(chat_id: Int64; message_id: Int64;
+  DisableNotification: Boolean): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    Add(s_ChatId, chat_id);
+    Add(s_MessageId, message_id);
+    if DisableNotification then
+      Add(s_DsblNtfctn, DisableNotification);
+    Result:=SendMethod(s_PinChatMessage, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.unpinChatMessage(chat_id: Int64; message_id: Int64): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    Add(s_ChatId, chat_id);
+    if message_id<>0 then
+      Add(s_MessageId, message_id);
+    Result:=SendMethod(s_UnpinChatMessage, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.unpinAllChatMessages(chat_id: Int64): Boolean;
+begin
+  Result:=SendMethod(s_UnpinAllChatMessages, [s_ChatId, chat_id]);
+end;
+
+function TTelegramSender.setMyDescription(const ADescription: String;
+  const ALanguageCode: String): Boolean;
+begin
+  Result:=False;
+  if Length(ADescription)>512 then
+    Exit;
+  if ALanguageCode=EmptyStr then
+    Result:=SendMethod(s_SetMyDescription, [s_Description, ADescription])
+  else
+    Result:=SendMethod(s_SetMyDescription, [s_Description, ADescription,
+      s_LanguageCode, ALanguageCode]);
+end;
+
+function TTelegramSender.setMyShortDescription(const ADescription: String;
+  const ALanguageCode: String): Boolean;
+begin
+  Result:=False;
+  if Length(ADescription)>120 then
+    Exit;
+  if ALanguageCode=EmptyStr then
+    Result:=SendMethod(s_SetMyShortDescription, [s_Description, ADescription])
+  else
+    Result:=SendMethod(s_SetMyShortDescription, [s_Description, ADescription,
+      s_LanguageCode, ALanguageCode]);
+end;
+
+function TTelegramSender.setMyName(const AName: String; const ALanguageCode: String): Boolean;
+begin
+  Result:=False;
+  if Length(AName)>64 then
+    Exit;
+  if ALanguageCode=EmptyStr then
+    Result:=SendMethod(s_SetMyName, [s_Name, AName])
+  else
+    Result:=SendMethod(s_SetMyName, [s_Name, AName, s_LanguageCode, ALanguageCode]);
+end;
+
+function TTelegramSender.getUserProfilePhotos(user_id: Int64; Offset: Integer;
+  Limit: Integer): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    Add(s_UserID, user_id);
+    if Offset<>0 then
+      Add(s_Offset, Offset);
+    if Limit<>0 then
+      Add(s_Limit, Limit);
+    Result:=SendMethod(s_GetUserProfilePhotos, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function BuildMessageIDsArray(const AMessageIDs: array of Int64): TJSONArray;
+var
+  i: Integer;
+begin
+  Result:=TJSONArray.Create;
+  for i:=0 to High(AMessageIDs) do
+    Result.Add(AMessageIDs[i]);
+end;
+
+function TTelegramSender.deleteMessages(chat_id: Int64; const AMessageIDs: array of Int64): Boolean;
+var
+  sendObj: TJSONObject;
+  aIDs: TJSONArray;
+begin
+  Result:=False;
+  if Length(AMessageIDs)=0 then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  aIDs:=BuildMessageIDsArray(AMessageIDs);
+  try
+    sendObj.Add(s_ChatId, chat_id);
+    sendObj.Add(s_MessageIds, aIDs);
+    Result:=SendMethod(s_DeleteMessages, sendObj);
+  finally
+    sendObj.Free;
+  end;
+end;
+
+function TTelegramSender.forwardMessages(chat_id, from_chat_id: Int64;
+  const AMessageIDs: array of Int64; DisableNotification: Boolean): Boolean;
+var
+  sendObj: TJSONObject;
+  aIDs: TJSONArray;
+begin
+  Result:=False;
+  if Length(AMessageIDs)=0 then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  aIDs:=BuildMessageIDsArray(AMessageIDs);
+  try
+    sendObj.Add(s_ChatId, chat_id);
+    sendObj.Add(s_FromChatID, from_chat_id);
+    sendObj.Add(s_MessageIds, aIDs);
+    if DisableNotification then
+      sendObj.Add(s_DsblNtfctn, DisableNotification);
+    Result:=SendMethod(s_ForwardMessages, sendObj);
+  finally
+    sendObj.Free;
+  end;
+end;
+
+function TTelegramSender.copyMessages(chat_id, from_chat_id: Int64;
+  const AMessageIDs: array of Int64; DisableNotification: Boolean): Boolean;
+var
+  sendObj: TJSONObject;
+  aIDs: TJSONArray;
+begin
+  Result:=False;
+  if Length(AMessageIDs)=0 then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  aIDs:=BuildMessageIDsArray(AMessageIDs);
+  try
+    sendObj.Add(s_ChatId, chat_id);
+    sendObj.Add(s_FromChatID, from_chat_id);
+    sendObj.Add(s_MessageIds, aIDs);
+    if DisableNotification then
+      sendObj.Add(s_DsblNtfctn, DisableNotification);
+    Result:=SendMethod(s_CopyMessages, sendObj);
+  finally
+    sendObj.Free;
+  end;
+end;
+
+function TTelegramSender.setChatMenuButton(AMenuButton: TJSONObject; ChatID: Int64): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  if not Assigned(AMenuButton) then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  try
+    if ChatID<>0 then
+      sendObj.Add(s_ChatId, ChatID);
+    sendObj.Add(s_MenuButton, AMenuButton.Clone);
+    Result:=SendMethod(s_SetChatMenuButton, sendObj);
+  finally
+    sendObj.Free;
+  end;
+end;
+
+function TTelegramSender.getChatMenuButton(ChatID: Int64): Boolean;
+begin
+  if ChatID=0 then
+    Result:=SendMethod(s_GetChatMenuButton, [])
+  else
+    Result:=SendMethod(s_GetChatMenuButton, [s_ChatId, ChatID]);
+end;
+
+function TTelegramSender.getBusinessConnection(const ABusinessConnectionID: String): Boolean;
+begin
+  Result:=SendMethod(s_GetBusinessConnection, [s_BsnsCnctnID, ABusinessConnectionID]);
+end;
+
+function TTelegramSender.answerWebAppQuery(const AWebAppQueryID: String;
+  AResult: TInlineQueryResult): Boolean;
+begin
+  Result:=False;
+  if not Assigned(AResult) then
+    Exit;
+  Result:=SendMethod(s_AnswerWebAppQuery, [s_WebAppQueryID, AWebAppQueryID,
+    s_Result, AResult.Clone]);
+end;
+
+function TTelegramSender.promoteChatMember(chat_id, user_id: Int64; CanManageChat: Boolean;
+  CanDeleteMessages: Boolean; CanManageVideoChats: Boolean; CanRestrictMembers: Boolean;
+  CanPromoteMembers: Boolean; CanChangeInfo: Boolean; CanInviteUsers: Boolean;
+  CanPostStories: Boolean; CanEditStories: Boolean; CanDeleteStories: Boolean;
+  CanPostMessages: Boolean; CanEditMessages: Boolean; CanPinMessages: Boolean;
+  CanManageTopics: Boolean; CanSendWelcomeMessages: Boolean): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    Add(s_ChatId, chat_id);
+    Add(s_UserID, user_id);
+    if CanManageChat then
+      Add(s_CanManageChat, CanManageChat);
+    if CanDeleteMessages then
+      Add(s_CanDeleteMessages, CanDeleteMessages);
+    if CanManageVideoChats then
+      Add(s_CanManageVideoChats, CanManageVideoChats);
+    if CanRestrictMembers then
+      Add(s_CanRestrictMembers, CanRestrictMembers);
+    if CanPromoteMembers then
+      Add(s_CanPromoteMembers, CanPromoteMembers);
+    if CanChangeInfo then
+      Add(s_CanChangeInfo, CanChangeInfo);
+    if CanInviteUsers then
+      Add(s_CanInviteUsers, CanInviteUsers);
+    if CanPostStories then
+      Add(s_CanPostStories, CanPostStories);
+    if CanEditStories then
+      Add(s_CanEditStories, CanEditStories);
+    if CanDeleteStories then
+      Add(s_CanDeleteStories, CanDeleteStories);
+    if CanPostMessages then
+      Add(s_CanPostMessages, CanPostMessages);
+    if CanEditMessages then
+      Add(s_CanEditMessages, CanEditMessages);
+    if CanPinMessages then
+      Add(s_CanPinMessages, CanPinMessages);
+    if CanManageTopics then
+      Add(s_CanManageTopics, CanManageTopics);
+    if CanSendWelcomeMessages then
+      Add(s_CanSendWelcomeMessages, CanSendWelcomeMessages);
+    Result:=SendMethod(s_PromoteChatMember, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.restrictChatMember(chat_id, user_id: Int64; until_date: Int64;
+  APermissions: TJSONObject): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  if not Assigned(APermissions) then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  try
+    sendObj.Add(s_ChatId, chat_id);
+    sendObj.Add(s_UserID, user_id);
+    if until_date<>0 then
+      sendObj.Add(s_UntilDate, until_date);
+    sendObj.Add(s_Permissions, APermissions.Clone);
+    Result:=SendMethod(s_RestrictChatMember, sendObj);
+  finally
+    sendObj.Free;
   end;
 end;
 

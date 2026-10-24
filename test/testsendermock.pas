@@ -123,6 +123,13 @@ type
     procedure sendPollPassesExplanation;
     procedure sendRichMessageBuildsRequest;
     procedure editMessageTextRichBuildsRequest;
+    procedure sendChatActionBuildsRequest;
+    procedure editMessageCaptionBuildsRequest;
+    procedure pinChatMessageBuildsRequest;
+    procedure setMyDescriptionBuildsRequest;
+    procedure deleteMessagesBuildsRequest;
+    procedure forwardMessagesBuildsRequest;
+    procedure restrictChatMemberBuildsRequest;
     procedure getFileParsesFileObject;
     procedure sendPhotoByFileNameUploadsFile;
     procedure requestWhenAnswerBuildsInlineReply;
@@ -605,6 +612,130 @@ begin
     AssertEquals(1, lBody.Objects['rich_message'].Arrays['blocks'].Count);
     AssertEquals('rich-cb', lBody.Objects['rich_message'].Arrays['blocks'].Objects[0]
       .Arrays['buttons'].Objects[0].Strings['callback_data']);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.sendChatActionBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  AssertTrue(Bot.sendChatAction(42, caRecordVideo));
+  AssertEquals('Request URL', TelegramAPI_URL+TestToken+'/sendChatAction', TMockHTTPClient.LastURL);
+  lBody:=LastRequestBody;
+  try
+    AssertEquals('record_video', lBody.Strings['action']);
+    AssertEquals(42, lBody.Integers['chat_id']);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.editMessageCaptionBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  AssertTrue(Bot.editMessageCaption(42, 100, 'new caption', pmHTML));
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('editMessageCaption URL', Pos('/editMessageCaption', TMockHTTPClient.LastURL)>0);
+    AssertEquals(42, lBody.Integers['chat_id']);
+    AssertEquals(100, lBody.Integers['message_id']);
+    AssertEquals('new caption', lBody.Strings['caption']);
+    AssertEquals('HTML', lBody.Strings['parse_mode']);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.pinChatMessageBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  AssertTrue(Bot.pinChatMessage(42, 555, True));
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('pinChatMessage URL', Pos('/pinChatMessage', TMockHTTPClient.LastURL)>0);
+    AssertEquals(42, lBody.Integers['chat_id']);
+    AssertEquals(555, lBody.Integers['message_id']);
+    AssertTrue('disable_notification', lBody.Booleans['disable_notification']);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.setMyDescriptionBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  AssertTrue(Bot.setMyDescription('The test bot', 'de'));
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('setMyDescription URL', Pos('/setMyDescription', TMockHTTPClient.LastURL)>0);
+    AssertEquals('The test bot', lBody.Strings['description']);
+    AssertEquals('de', lBody.Strings['language_code']);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.deleteMessagesBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  AssertTrue(Bot.deleteMessages(42, [10, 20, 30]));
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('deleteMessages URL', Pos('/deleteMessages', TMockHTTPClient.LastURL)>0);
+    AssertEquals(3, lBody.Arrays['message_ids'].Count);
+    AssertEquals(10, lBody.Arrays['message_ids'].Integers[0]);
+    AssertEquals(30, lBody.Arrays['message_ids'].Integers[2]);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.forwardMessagesBuildsRequest;
+var
+  lBody: TJSONObject;
+begin
+  MockResponse('[5,6]');
+  AssertTrue(Bot.forwardMessages(42, 43, [1, 2]));
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('forwardMessages URL', Pos('/forwardMessages', TMockHTTPClient.LastURL)>0);
+    AssertEquals(43, lBody.Integers['from_chat_id']);
+    AssertEquals(2, lBody.Arrays['message_ids'].Count);
+    AssertTrue('no disable_notification by default', lBody.Find('disable_notification')=nil);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.restrictChatMemberBuildsRequest;
+var
+  lPermissions: TJSONObject;
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  lPermissions:=TJSONObject.Create(['can_send_messages', False, 'can_send_other_messages', False]);
+  try
+    AssertTrue(Bot.restrictChatMember(42, 99, 1700000500, lPermissions));
+  finally
+    lPermissions.Free;
+  end;
+  lBody:=LastRequestBody;
+  try
+    AssertTrue('restrictChatMember URL', Pos('/restrictChatMember', TMockHTTPClient.LastURL)>0);
+    AssertEquals(99, lBody.Integers['user_id']);
+    AssertEquals(Int64(1700000500), lBody.Int64s['until_date']);
+    AssertFalse('permissions', lBody.Objects['permissions'].Booleans['can_send_messages']);
   finally
     lBody.Free;
   end;

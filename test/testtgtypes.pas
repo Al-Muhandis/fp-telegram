@@ -577,6 +577,9 @@ begin
     aRich:=aUpdateObj.Message.RichMessage;
     AssertFalse('is_rtl', aRich.IsRTL);
     AssertEquals('block count', 2, aRich.BlockCount);
+    AssertEquals('paragraph', aRich.Block(0).Get('type', EmptyStr));
+    AssertEquals('buttons', aRich.Block(1).Get('type', EmptyStr));
+    AssertEquals('plain text extraction', 'Hello rich world', aRich.PlainText);
     aButtons:=aRich.ExtractButtons;
     try
       AssertNotNull('buttons extracted', aButtons);
