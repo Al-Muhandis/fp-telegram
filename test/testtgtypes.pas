@@ -40,6 +40,7 @@ type
     procedure ParseMessageReactionCountUpdate;
     procedure ParseMessageQuote;
     procedure ParseMessageExternalReply;
+    procedure ParseMessageRichMessage;
     procedure ParseWebhookInfo;
     procedure ParseFileObject;
     procedure UnknownUpdateType;
@@ -537,6 +538,55 @@ begin
     AssertNotNull('ExternalReply should be assigned', aMessage.ExternalReply);
     AssertTrue('ExternalReply JSON should contain origin type',
       Pos('"type" : "user"', aMessage.ExternalReply.AsString)>0);
+  finally
+    aUpdateObj.Free;
+  end;
+end;
+
+procedure TTestTgTypesParse.ParseMessageRichMessage;
+const
+  MessageWithRichJSON =
+    '{' +
+      '"update_id":1004,' +
+      '"message":{' +
+        '"message_id":60,' +
+        '"date":1700000400,' +
+        '"chat":{"id":77,"type":"private","first_name":"Test"},' +
+        '"text":"",' +
+        '"rich_message":{' +
+          '"is_rtl":false,' +
+          '"blocks":[' +
+            '{"type":"paragraph","text":"Hello rich world"},' +
+            '{"type":"buttons","align":"center","buttons":[' +
+              '{"text":"Open site","url":"https://example.com"},' +
+              '{"text":"Copy","copy_text":{"text":"copied!"}}' +
+            ']}' +
+          ']' +
+        '}' +
+      '}' +
+    '}';
+var
+  aUpdateObj: TTelegramUpdateObj;
+  aRich: TTelegramRichMessage;
+  aButtons: TJSONArray;
+begin
+  aUpdateObj:=UpdateFromString(MessageWithRichJSON);
+  try
+    AssertEquals(Ord(utMessage), Ord(aUpdateObj.UpdateType));
+    AssertNotNull('RichMessage should be assigned', aUpdateObj.Message.RichMessage);
+    aRich:=aUpdateObj.Message.RichMessage;
+    AssertFalse('is_rtl', aRich.IsRTL);
+    AssertEquals('block count', 2, aRich.BlockCount);
+    aButtons:=aRich.ExtractButtons;
+    try
+      AssertNotNull('buttons extracted', aButtons);
+      AssertEquals('button count', 2, aButtons.Count);
+      AssertEquals('Open site', aButtons.Objects[0].Strings['text']);
+      AssertEquals('https://example.com', aButtons.Objects[0].Strings['url']);
+      AssertEquals('copied!', aButtons.Objects[1].Objects['copy_text'].Strings['text']);
+    finally
+      aButtons.Free;
+    end;
   finally
     aUpdateObj.Free;
   end;

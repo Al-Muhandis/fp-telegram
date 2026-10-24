@@ -20,6 +20,15 @@ type
   TKeyboardButton = class;
   TKeyboardButtonArray = class;
   TInlineKeyboard = class;
+  TWebAppInfo = class;
+  TLoginUrl = class;
+  TCopyTextButton = class;
+  TDisabledButton = class;
+  TSwitchInlineQueryChosenChat = class;
+  TKeyboardButtonPollType = class;
+  TKeyboardButtonRequestUsers = class;
+  TKeyboardButtonRequestChat = class;
+  TRichMessageButton = class;
 
   TOnUpdateEvent = procedure (ASender: TObject; AnUpdate: TTelegramUpdateObj) of object;
 
@@ -71,7 +80,9 @@ type
     function GetReplyKeyboardMarkup: TKeyboardButtonArray;
     function GetResizeKeyboard: Boolean;
     function GetSelective: Boolean;
+    function GetIsPersistent: Boolean;
     procedure SetForceReply(AValue: Boolean);
+    procedure SetIsPersistent(AValue: Boolean);
     procedure SetInlineKeyBoard(AValue: TInlineKeyboard);
     procedure SetInputFieldPlaceholder(AValue: String);
     procedure SetOneTimeKeyboard(AValue: Boolean);
@@ -93,6 +104,8 @@ type
 { Only if ReplyKeyboard is present then optional}
     property ResizeKeyboard: Boolean read GetResizeKeyboard write SetResizeKeyboard;
     property OneTimeKeyboard: Boolean read GetOneTimeKeyboard write SetOneTimeKeyboard;
+    { Optional. Requests clients to always show the keyboard when the regular keyboard is hidden }
+    property IsPersistent: Boolean read GetIsPersistent write SetIsPersistent;
 { ForceReply properties
   If property ForceReply is set then ReplyMarkup must be only ForceReply type }
     property ForceReply: Boolean read GetForceReply write SetForceReply;
@@ -110,16 +123,38 @@ type
     function GetRequestLocation: Boolean;
     function GetStyle: String;
     function Gettext: String;
+    function GetIconCustomEmojiID: String;
+    function GetRequestPoll: TKeyboardButtonPollType;
+    function GetWebApp: TWebAppInfo;
+    function GetRequestUsers: TKeyboardButtonRequestUsers;
+    function GetRequestChat: TKeyboardButtonRequestChat;
     procedure SetRequestContact(AValue: Boolean);
     procedure SetRequestLocation(AValue: Boolean);
     procedure SetStyle(const AValue: String);
     procedure Settext(AValue: String);
+    procedure SetIconCustomEmojiID(AValue: String);
+    procedure SetRequestPoll(AValue: TKeyboardButtonPollType);
+    procedure SetWebApp(AValue: TWebAppInfo);
+    procedure SetRequestUsers(AValue: TKeyboardButtonRequestUsers);
+    procedure SetRequestChat(AValue: TKeyboardButtonRequestChat);
   public
     constructor Create(const AText: String);
     property text: String read Gettext write Settext;
     property Style: String read GetStyle write SetStyle; // Optional
+    { Optional. Unique identifier of the custom emoji shown before the label }
+    property IconCustomEmojiID: String read GetIconCustomEmojiID write SetIconCustomEmojiID;
     property RequestContact: Boolean read GetRequestContact write SetRequestContact; // Optional
     property RequestLocation: Boolean read GetRequestLocation write SetRequestLocation; // Optional
+    { Optional. The user will be asked to create a poll and send it to the bot }
+    property RequestPoll: TKeyboardButtonPollType read GetRequestPoll write SetRequestPoll;
+    { Optional. The Web App will be launched when the button is pressed }
+    property web_app: TWebAppInfo read GetWebApp write SetWebApp;
+    { Optional. Pressing the button opens a list of suitable users;
+      the shared users come in a users_shared service message }
+    property RequestUsers: TKeyboardButtonRequestUsers read GetRequestUsers write SetRequestUsers;
+    { Optional. Pressing the button opens a list of suitable chats;
+      the shared chat comes in a chat_shared service message }
+    property RequestChat: TKeyboardButtonRequestChat read GetRequestChat write SetRequestChat;
   end;
 
   { TKeyboardButtons }
@@ -148,21 +183,50 @@ type
     function GetStyle: String;
     function Gettext: String;
     function Geturl: String;
+    function GetIconCustomEmojiID: String;
+    function GetWebApp: TWebAppInfo;
+    function GetLoginUrl: TLoginUrl;
+    function GetCopyText: TCopyTextButton;
+    function GetSwitchInlineQueryChosenChat: TSwitchInlineQueryChosenChat;
+    function GetPay: Boolean;
+    function GetCallbackGame: Boolean;
+    function GetDisabled: Boolean;
     procedure Setcallback_data(AValue: String);
     procedure SetStyle(AValue: String);
     procedure Setswitch_inline_query(AValue: String);
     procedure Setswitch_inline_query_current_chat(AValue: String);
     procedure Settext(AValue: String);
     procedure Seturl(AValue: String);
+    procedure SetIconCustomEmojiID(AValue: String);
+    procedure SetWebApp(AValue: TWebAppInfo);
+    procedure SetLoginUrl(AValue: TLoginUrl);
+    procedure SetCopyText(AValue: TCopyTextButton);
+    procedure SetSwitchInlineQueryChosenChat(AValue: TSwitchInlineQueryChosenChat);
+    procedure SetPay(AValue: Boolean);
+    procedure SetCallbackGame(AValue: Boolean);
+    procedure SetDisabled(AValue: Boolean);
   public
     constructor Create(const AText: String);
     property text: String read Gettext write Settext;
     property Style: String read GetStyle write SetStyle;
+    { Optional. Unique identifier of the custom emoji shown before the label }
+    property IconCustomEmojiID: String read GetIconCustomEmojiID write SetIconCustomEmojiID;
     property url: String read Geturl write Seturl;
     property callback_data: String read Getcallback_data write Setcallback_data;
     property switch_inline_query: String read Getswitch_inline_query write Setswitch_inline_query;
     property switch_inline_query_current_chat: String read Getswitch_inline_query_current_chat
       write Setswitch_inline_query_current_chat;
+    property switch_inline_query_chosen_chat: TSwitchInlineQueryChosenChat
+      read GetSwitchInlineQueryChosenChat write SetSwitchInlineQueryChosenChat;
+    property web_app: TWebAppInfo read GetWebApp write SetWebApp;
+    property login_url: TLoginUrl read GetLoginUrl write SetLoginUrl;
+    property copy_text: TCopyTextButton read GetCopyText write SetCopyText;
+    { Pay button: must be the first button in the first row of an invoice message }
+    property pay: Boolean read GetPay write SetPay;
+    { Game button: must be the first button in the first row of a game message }
+    property callback_game: Boolean read GetCallbackGame write SetCallbackGame;
+    { Disabled button is shown but does nothing }
+    property disabled: Boolean read GetDisabled write SetDisabled;
   end;
 
   { TInlineKeyboardButtons }
@@ -196,6 +260,267 @@ type
   public
     function Add(aButtons: TKeyboardButtons): Integer; overload;
     function Add: TKeyboardButtons;
+  end;
+
+  { TWebAppInfo }
+  { Describes a Web App that will be launched when the user presses a button }
+
+  TWebAppInfo = class(TJSONObject)
+  private
+    function GetWebAppUrl: String;
+    procedure SetWebAppUrl(AValue: String);
+  public
+    constructor Create(const AUrl: String);
+    property Url: String read GetWebAppUrl write SetWebAppUrl;
+  end;
+
+  { TLoginUrl }
+  { Describes the automatic authorization data sent with a button press }
+
+  TLoginUrl = class(TJSONObject)
+  private
+    function GetLoginUrl: String;
+    function GetForwardText: String;
+    function GetBotUsername: String;
+    function GetRequestWriteAccess: Boolean;
+    procedure SetLoginUrl(AValue: String);
+    procedure SetForwardText(AValue: String);
+    procedure SetBotUsername(AValue: String);
+    procedure SetRequestWriteAccess(AValue: Boolean);
+  public
+    constructor Create(const AUrl: String);
+    property Url: String read GetLoginUrl write SetLoginUrl;
+    property ForwardText: String read GetForwardText write SetForwardText;
+    property BotUsername: String read GetBotUsername write SetBotUsername;
+    property RequestWriteAccess: Boolean read GetRequestWriteAccess write SetRequestWriteAccess;
+  end;
+
+  { TCopyTextButton }
+  { Describes a button that copies the specified text to the clipboard }
+
+  TCopyTextButton = class(TJSONObject)
+  private
+    function GetCopyText: String;
+    procedure SetCopyText(AValue: String);
+  public
+    constructor Create(const AText: String);
+    property Text: String read GetCopyText write SetCopyText;
+  end;
+
+  { TDisabledButton }
+  { Marks the button as disabled: it is shown but does nothing }
+
+  TDisabledButton = class(TJSONObject)
+  end;
+
+  { TSwitchInlineQueryChosenChat }
+  { Describes the chat types the user can select when pressing a switch inline query button }
+
+  TSwitchInlineQueryChosenChat = class(TJSONObject)
+  private
+    function GetSIIQCCQuery: String;
+    function GetAllowUserChats: Boolean;
+    function GetAllowBotChats: Boolean;
+    function GetAllowGroupChats: Boolean;
+    function GetAllowChannelChats: Boolean;
+    procedure SetSIIQCCQuery(AValue: String);
+    procedure SetAllowUserChats(AValue: Boolean);
+    procedure SetAllowBotChats(AValue: Boolean);
+    procedure SetAllowGroupChats(AValue: Boolean);
+    procedure SetAllowChannelChats(AValue: Boolean);
+  public
+    property Query: String read GetSIIQCCQuery write SetSIIQCCQuery;
+    property AllowUserChats: Boolean read GetAllowUserChats write SetAllowUserChats;
+    property AllowBotChats: Boolean read GetAllowBotChats write SetAllowBotChats;
+    property AllowGroupChats: Boolean read GetAllowGroupChats write SetAllowGroupChats;
+    property AllowChannelChats: Boolean read GetAllowChannelChats write SetAllowChannelChats;
+  end;
+
+  { TKeyboardButtonPollType }
+  { Describes the poll type allowed to create when pressing a reply keyboard button }
+
+  TKeyboardButtonPollType = class(TJSONObject)
+  private
+    function GetPollType: String;
+    procedure SetPollType(AValue: String);
+  public
+    { An empty string allows any poll type, 'regular' and 'quiz' restrict it }
+    constructor Create(const APollType: String = '');
+    property PollType: String read GetPollType write SetPollType;
+  end;
+
+  { TKeyboardButtonRequestUsers }
+  { Describes a request of users shared with the bot when pressing a reply keyboard button }
+
+  TKeyboardButtonRequestUsers = class(TJSONObject)
+  private
+    function GetReqID: Integer;
+    function GetUserIsBot: Boolean;
+    function GetUserIsPremium: Boolean;
+    function GetMaxQuantity: Integer;
+    function GetReqName: Boolean;
+    function GetReqUsername: Boolean;
+    function GetReqPhoto: Boolean;
+    procedure SetReqID(AValue: Integer);
+    procedure SetUserIsBot(AValue: Boolean);
+    procedure SetUserIsPremium(AValue: Boolean);
+    procedure SetMaxQuantity(AValue: Integer);
+    procedure SetReqName(AValue: Boolean);
+    procedure SetReqUsername(AValue: Boolean);
+    procedure SetReqPhoto(AValue: Boolean);
+  public
+    constructor Create(ARequestID: Integer);
+    property RequestID: Integer read GetReqID write SetReqID;
+    property UserIsBot: Boolean read GetUserIsBot write SetUserIsBot;
+    property UserIsPremium: Boolean read GetUserIsPremium write SetUserIsPremium;
+    property MaxQuantity: Integer read GetMaxQuantity write SetMaxQuantity;
+    property RequestName: Boolean read GetReqName write SetReqName;
+    property RequestUsername: Boolean read GetReqUsername write SetReqUsername;
+    property RequestPhoto: Boolean read GetReqPhoto write SetReqPhoto;
+  end;
+
+  { TKeyboardButtonRequestChat }
+  { Describes a request of a chat shared with the bot when pressing a reply keyboard button }
+
+  TKeyboardButtonRequestChat = class(TJSONObject)
+  private
+    function GetReqID: Integer;
+    function GetChatIsChannel: Boolean;
+    function GetChatIsForum: Boolean;
+    function GetChatHasUsername: Boolean;
+    function GetChatIsCreated: Boolean;
+    function GetUserAdminRights: TJSONObject;
+    function GetBotAdminRights: TJSONObject;
+    function GetBotIsMember: Boolean;
+    function GetReqTitle: Boolean;
+    function GetReqUsername: Boolean;
+    function GetReqPhoto: Boolean;
+    procedure SetReqID(AValue: Integer);
+    procedure SetChatIsChannel(AValue: Boolean);
+    procedure SetChatIsForum(AValue: Boolean);
+    procedure SetChatHasUsername(AValue: Boolean);
+    procedure SetChatIsCreated(AValue: Boolean);
+    procedure SetUserAdminRights(AValue: TJSONObject);
+    procedure SetBotAdminRights(AValue: TJSONObject);
+    procedure SetBotIsMember(AValue: Boolean);
+    procedure SetReqTitle(AValue: Boolean);
+    procedure SetReqUsername(AValue: Boolean);
+    procedure SetReqPhoto(AValue: Boolean);
+  public
+    constructor Create(ARequestID: Integer; AChatIsChannel: Boolean);
+    property RequestID: Integer read GetReqID write SetReqID;
+    property ChatIsChannel: Boolean read GetChatIsChannel write SetChatIsChannel;
+    property ChatIsForum: Boolean read GetChatIsForum write SetChatIsForum;
+    property ChatHasUsername: Boolean read GetChatHasUsername write SetChatHasUsername;
+    property ChatIsCreated: Boolean read GetChatIsCreated write SetChatIsCreated;
+    { ChatAdministratorRights objects (raw JSON, everything except the rights is ignored) }
+    property UserAdministratorRights: TJSONObject read GetUserAdminRights write SetUserAdminRights;
+    property BotAdministratorRights: TJSONObject read GetBotAdminRights write SetBotAdminRights;
+    property BotIsMember: Boolean read GetBotIsMember write SetBotIsMember;
+    property RequestTitle: Boolean read GetReqTitle write SetReqTitle;
+    property RequestUsername: Boolean read GetReqUsername write SetReqUsername;
+    property RequestPhoto: Boolean read GetReqPhoto write SetReqPhoto;
+  end;
+
+  { TRichMessageButton }
+  { A button of a rich message (Bot API 10.1+). Exactly one of the optional action
+    fields other than text and style must be used }
+
+  TRichMessageButton = class(TJSONObject)
+  private
+    function GetText: String;
+    function GetStyle: String;
+    function Geturl: String;
+    function Getcallback_data: String;
+    function Getswitch_inline_query: String;
+    function Getswitch_inline_query_current_chat: String;
+    function GetWebApp: TWebAppInfo;
+    function GetLoginUrl: TLoginUrl;
+    function GetCopyText: TCopyTextButton;
+    function GetDisabled: Boolean;
+    procedure SetText(AValue: String);
+    procedure SetStyle(AValue: String);
+    procedure Seturl(AValue: String);
+    procedure Setcallback_data(AValue: String);
+    procedure Setswitch_inline_query(AValue: String);
+    procedure Setswitch_inline_query_current_chat(AValue: String);
+    procedure SetWebApp(AValue: TWebAppInfo);
+    procedure SetLoginUrl(AValue: TLoginUrl);
+    procedure SetCopyText(AValue: TCopyTextButton);
+    procedure SetDisabled(AValue: Boolean);
+  public
+    constructor Create(const AText: String);
+    { Text of the button: may contain only plain text, custom emoji and date/time entities }
+    property text: String read GetText write SetText;
+    property Style: String read GetStyle write SetStyle; // "danger", "success", "primary", "link"
+    property url: String read Geturl write Seturl;
+    property callback_data: String read Getcallback_data write Setcallback_data;
+    property switch_inline_query: String read Getswitch_inline_query write Setswitch_inline_query;
+    property switch_inline_query_current_chat: String read Getswitch_inline_query_current_chat
+      write Setswitch_inline_query_current_chat;
+    property web_app: TWebAppInfo read GetWebApp write SetWebApp;
+    property login_url: TLoginUrl read GetLoginUrl write SetLoginUrl;
+    property copy_text: TCopyTextButton read GetCopyText write SetCopyText;
+    property disabled: Boolean read GetDisabled write SetDisabled;
+  end;
+
+  { TRichMessageButtons }
+  { A row of rich message buttons }
+
+  TRichMessageButtons = class(TJSONArray)
+  public
+    function Add(aButton: TRichMessageButton): Integer; overload;
+    function AddButton(const AText, AUrl: String): TRichMessageButton;
+    function AddCallbackButton(const AText, ACallbackData: String): TRichMessageButton;
+    function AddCopyButton(const AText, ATextToCopy: String): TRichMessageButton;
+  end;
+
+  { TInputRichBlockButtons }
+  { A rich message block with a row of buttons (Bot API 10.3+) }
+
+  TInputRichBlockButtons = class(TJSONObject)
+  private
+    function GetButtons: TRichMessageButtons;
+    function GetAlign: String;
+    procedure SetAlign(AValue: String);
+  public
+    constructor Create;
+    { The buttons row; "left", "center" or "right" }
+    property Buttons: TRichMessageButtons read GetButtons;
+    property Align: String read GetAlign write SetAlign;
+  end;
+
+  { TInputRichMessage }
+  { A rich message to send (Bot API 10.1+). Exactly one of Markdown, HTML or Blocks
+    must be used }
+
+  TInputRichMessage = class(TJSONObject)
+  private
+    function GetMarkdown: String;
+    function GetHTML: String;
+    function GetBlocks: TJSONArray;
+    function GetIsRTL: Boolean;
+    function GetSkipEntityDetection: Boolean;
+    procedure SetMarkdown(AValue: String);
+    procedure SetHTML(AValue: String);
+    procedure SetBlocks(AValue: TJSONArray);
+    procedure SetIsRTL(AValue: Boolean);
+    procedure SetSkipEntityDetection(AValue: Boolean);
+  public
+    constructor Create;
+    { The message content described using Markdown or HTML formatting
+      (see the rich message formatting options of the Telegram docs).
+      Use the media field to specify the media used in the message }
+    class function CreateFromMarkdown(const AText: String): TInputRichMessage;
+    class function CreateFromHTML(const AText: String): TInputRichMessage;
+    { Content of the rich message described as a list of blocks (Bot API 10.2+) }
+    property Blocks: TJSONArray read GetBlocks write SetBlocks;
+    property Markdown: String read GetMarkdown write SetMarkdown;
+    property HTML: String read GetHTML write SetHTML;
+    property IsRTL: Boolean read GetIsRTL write SetIsRTL;
+    property SkipEntityDetection: Boolean read GetSkipEntityDetection write SetSkipEntityDetection;
+    { Adds and returns a buttons block appended to Blocks }
+    function AddButtonsBlock: TInputRichBlockButtons;
   end;
 
   { TInputMessageContent }
@@ -645,6 +970,15 @@ type
       DisableWebPagePreview: Boolean=False; ReplyToMessageID: Integer = 0): Boolean;
     function sendMediaGroupByFileNames(chat_id: Int64; media: TInputMediaArray): Boolean;
     function sendMediaGroupByStreams(chat_id: Int64; const ACaption: String; StreamsList:TStringList): Boolean;
+    { Rich messages (Bot API 10.1+). Sends a rich message, on success the sent
+      message is returned in JSONResponse }
+    function sendRichMessage(chat_id: Int64; ARichMessage: TInputRichMessage;
+      DisableNotification: Boolean = False; MessageThreadID: Integer = _nullThrd;
+      const BusinessConnectionID: String = ''; ReplyMarkup: TReplyMarkup = nil): Boolean;
+    { Edits the text of a message replacing it with a rich message (the rich_message
+      parameter of editMessageText) }
+    function editMessageTextRich(ARichMessage: TInputRichMessage; chat_id: Int64; message_id: Int64;
+      inline_message_id: String = ''; ReplyMarkup: TReplyMarkup = nil): Boolean;
     function sendMessage(chat_id: Int64; const AMessage: String; ParseMode: TParseMode = pmDefault;
       DisableWebPagePreview: Boolean=False; ReplyMarkup: TReplyMarkup = nil;
       ReplyToMessageID: Integer = 0; DisableNotification: Boolean = False; MessageThreadID: Integer = _nullThrd;
@@ -983,6 +1317,54 @@ const
   s_GetChatAdministrators='getChatAdministrators';
 
   s_BsnsCnctnID='business_connection_id';
+
+//  Bot API markup fields (web apps, login, copy, polls, user/chat requests)
+  s_WebApp='web_app';
+  s_LoginUrl='login_url';
+  s_CopyText='copy_text';
+  s_CallbackGame='callback_game';
+  s_Pay='pay';
+  s_Disabled='disabled';
+  s_IconCustomEmojiID='icon_custom_emoji_id';
+  s_SwitchInlineQueryChosenChat='switch_inline_query_chosen_chat';
+  s_RequestPoll='request_poll';
+  s_RequestUsers='request_users';
+  s_RequestChat='request_chat';
+  s_IsPersistent='is_persistent';
+  s_Query='query';
+  s_AllowUserChats='allow_user_chats';
+  s_AllowBotChats='allow_bot_chats';
+  s_AllowGroupChats='allow_group_chats';
+  s_AllowChannelChats='allow_channel_chats';
+  s_RequestID='request_id';
+  s_UserIsBot='user_is_bot';
+  s_UserIsPremium='user_is_premium';
+  s_MaxQuantity='max_quantity';
+  s_RequestName='request_name';
+  s_RequestUsername='request_username';
+  s_RequestPhoto='request_photo';
+  s_ChatIsChannel='chat_is_channel';
+  s_ChatIsForum='chat_is_forum';
+  s_ChatHasUsername='chat_has_username';
+  s_ChatIsCreated='chat_is_created';
+  s_UserAdministratorRights='user_administrator_rights';
+  s_BotAdministratorRights='bot_administrator_rights';
+  s_BotIsMember='bot_is_member';
+  s_RequestTitle='request_title';
+  s_ForwardText='forward_text';
+  s_BotUsername='bot_username';
+  s_RequestWriteAccess='request_write_access';
+
+//  Rich messages (Bot API 10.1+)
+  s_Blocks='blocks';
+  s_Markdown='markdown';
+  s_HTML='html';
+  s_IsRTL='is_rtl';
+  s_SkipEntityDetection='skip_entity_detection';
+  s_Align='align';
+  s_Buttons='buttons';
+  s_RichMessage='rich_message';
+  s_SendRichMessage='sendRichMessage';
 
   ParseModes: array[TParseMode] of PChar = ('', 'Markdown', 'HTML', 'MarkdownV2');
   MediaTypes: array[TMediaType] of PChar = ('photo', 'video', '');
@@ -1656,6 +2038,623 @@ begin
   Strings[s_VoiceFileID]:=AValue;
 end;
 
+{ TWebAppInfo }
+
+function TWebAppInfo.GetWebAppUrl: String;
+begin
+  Result:=Get(s_Url, EmptyStr);
+end;
+
+procedure TWebAppInfo.SetWebAppUrl(AValue: String);
+begin
+  Strings[s_Url]:=AValue;
+end;
+
+constructor TWebAppInfo.Create(const AUrl: String);
+begin
+  inherited Create;
+  Url:=AUrl;
+end;
+
+{ TLoginUrl }
+
+function TLoginUrl.GetLoginUrl: String;
+begin
+  Result:=Get(s_Url, EmptyStr);
+end;
+
+function TLoginUrl.GetForwardText: String;
+begin
+  Result:=Get(s_ForwardText, EmptyStr);
+end;
+
+function TLoginUrl.GetBotUsername: String;
+begin
+  Result:=Get(s_BotUsername, EmptyStr);
+end;
+
+function TLoginUrl.GetRequestWriteAccess: Boolean;
+begin
+  Result:=Get(s_RequestWriteAccess, False);
+end;
+
+procedure TLoginUrl.SetLoginUrl(AValue: String);
+begin
+  Strings[s_Url]:=AValue;
+end;
+
+procedure TLoginUrl.SetForwardText(AValue: String);
+begin
+  Strings[s_ForwardText]:=AValue;
+end;
+
+procedure TLoginUrl.SetBotUsername(AValue: String);
+begin
+  Strings[s_BotUsername]:=AValue;
+end;
+
+procedure TLoginUrl.SetRequestWriteAccess(AValue: Boolean);
+begin
+  Booleans[s_RequestWriteAccess]:=AValue;
+end;
+
+constructor TLoginUrl.Create(const AUrl: String);
+begin
+  inherited Create;
+  Url:=AUrl;
+end;
+
+{ TCopyTextButton }
+
+function TCopyTextButton.GetCopyText: String;
+begin
+  Result:=Get(s_Text, EmptyStr);
+end;
+
+procedure TCopyTextButton.SetCopyText(AValue: String);
+begin
+  Strings[s_Text]:=AValue;
+end;
+
+constructor TCopyTextButton.Create(const AText: String);
+begin
+  inherited Create;
+  Text:=AText;
+end;
+
+{ TSwitchInlineQueryChosenChat }
+
+function TSwitchInlineQueryChosenChat.GetSIIQCCQuery: String;
+begin
+  Result:=Get(s_Query, EmptyStr);
+end;
+
+function TSwitchInlineQueryChosenChat.GetAllowUserChats: Boolean;
+begin
+  Result:=Get(s_AllowUserChats, False);
+end;
+
+function TSwitchInlineQueryChosenChat.GetAllowBotChats: Boolean;
+begin
+  Result:=Get(s_AllowBotChats, False);
+end;
+
+function TSwitchInlineQueryChosenChat.GetAllowGroupChats: Boolean;
+begin
+  Result:=Get(s_AllowGroupChats, False);
+end;
+
+function TSwitchInlineQueryChosenChat.GetAllowChannelChats: Boolean;
+begin
+  Result:=Get(s_AllowChannelChats, False);
+end;
+
+procedure TSwitchInlineQueryChosenChat.SetSIIQCCQuery(AValue: String);
+begin
+  Strings[s_Query]:=AValue;
+end;
+
+procedure TSwitchInlineQueryChosenChat.SetAllowUserChats(AValue: Boolean);
+begin
+  Booleans[s_AllowUserChats]:=AValue;
+end;
+
+procedure TSwitchInlineQueryChosenChat.SetAllowBotChats(AValue: Boolean);
+begin
+  Booleans[s_AllowBotChats]:=AValue;
+end;
+
+procedure TSwitchInlineQueryChosenChat.SetAllowGroupChats(AValue: Boolean);
+begin
+  Booleans[s_AllowGroupChats]:=AValue;
+end;
+
+procedure TSwitchInlineQueryChosenChat.SetAllowChannelChats(AValue: Boolean);
+begin
+  Booleans[s_AllowChannelChats]:=AValue;
+end;
+
+{ TKeyboardButtonPollType }
+
+function TKeyboardButtonPollType.GetPollType: String;
+begin
+  Result:=Get(s_Type, EmptyStr);
+end;
+
+procedure TKeyboardButtonPollType.SetPollType(AValue: String);
+begin
+  if AValue=EmptyStr then
+  begin
+    if IndexOfName(s_Type)>-1 then
+      Delete(s_Type);
+  end
+  else
+    Strings[s_Type]:=AValue;
+end;
+
+constructor TKeyboardButtonPollType.Create(const APollType: String);
+begin
+  inherited Create;
+  if APollType<>EmptyStr then
+    PollType:=APollType;
+end;
+
+{ TKeyboardButtonRequestUsers }
+
+function TKeyboardButtonRequestUsers.GetReqID: Integer;
+begin
+  Result:=Get(s_RequestID, 0);
+end;
+
+function TKeyboardButtonRequestUsers.GetUserIsBot: Boolean;
+begin
+  Result:=Get(s_UserIsBot, False);
+end;
+
+function TKeyboardButtonRequestUsers.GetUserIsPremium: Boolean;
+begin
+  Result:=Get(s_UserIsPremium, False);
+end;
+
+function TKeyboardButtonRequestUsers.GetMaxQuantity: Integer;
+begin
+  Result:=Get(s_MaxQuantity, 1);
+end;
+
+function TKeyboardButtonRequestUsers.GetReqName: Boolean;
+begin
+  Result:=Get(s_RequestName, False);
+end;
+
+function TKeyboardButtonRequestUsers.GetReqUsername: Boolean;
+begin
+  Result:=Get(s_RequestUsername, False);
+end;
+
+function TKeyboardButtonRequestUsers.GetReqPhoto: Boolean;
+begin
+  Result:=Get(s_RequestPhoto, False);
+end;
+
+procedure TKeyboardButtonRequestUsers.SetReqID(AValue: Integer);
+begin
+  Integers[s_RequestID]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetUserIsBot(AValue: Boolean);
+begin
+  Booleans[s_UserIsBot]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetUserIsPremium(AValue: Boolean);
+begin
+  Booleans[s_UserIsPremium]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetMaxQuantity(AValue: Integer);
+begin
+  Integers[s_MaxQuantity]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetReqName(AValue: Boolean);
+begin
+  Booleans[s_RequestName]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetReqUsername(AValue: Boolean);
+begin
+  Booleans[s_RequestUsername]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestUsers.SetReqPhoto(AValue: Boolean);
+begin
+  Booleans[s_RequestPhoto]:=AValue;
+end;
+
+constructor TKeyboardButtonRequestUsers.Create(ARequestID: Integer);
+begin
+  inherited Create;
+  RequestID:=ARequestID;
+end;
+
+{ TKeyboardButtonRequestChat }
+
+function TKeyboardButtonRequestChat.GetReqID: Integer;
+begin
+  Result:=Get(s_RequestID, 0);
+end;
+
+function TKeyboardButtonRequestChat.GetChatIsChannel: Boolean;
+begin
+  Result:=Get(s_ChatIsChannel, False);
+end;
+
+function TKeyboardButtonRequestChat.GetChatIsForum: Boolean;
+begin
+  Result:=Get(s_ChatIsForum, False);
+end;
+
+function TKeyboardButtonRequestChat.GetChatHasUsername: Boolean;
+begin
+  Result:=Get(s_ChatHasUsername, False);
+end;
+
+function TKeyboardButtonRequestChat.GetChatIsCreated: Boolean;
+begin
+  Result:=Get(s_ChatIsCreated, False);
+end;
+
+function TKeyboardButtonRequestChat.GetUserAdminRights: TJSONObject;
+begin
+  Result:=Find(s_UserAdministratorRights, jtObject) as TJSONObject;
+end;
+
+function TKeyboardButtonRequestChat.GetBotAdminRights: TJSONObject;
+begin
+  Result:=Find(s_BotAdministratorRights, jtObject) as TJSONObject;
+end;
+
+function TKeyboardButtonRequestChat.GetBotIsMember: Boolean;
+begin
+  Result:=Get(s_BotIsMember, False);
+end;
+
+function TKeyboardButtonRequestChat.GetReqTitle: Boolean;
+begin
+  Result:=Get(s_RequestTitle, False);
+end;
+
+function TKeyboardButtonRequestChat.GetReqUsername: Boolean;
+begin
+  Result:=Get(s_RequestUsername, False);
+end;
+
+function TKeyboardButtonRequestChat.GetReqPhoto: Boolean;
+begin
+  Result:=Get(s_RequestPhoto, False);
+end;
+
+procedure TKeyboardButtonRequestChat.SetReqID(AValue: Integer);
+begin
+  Integers[s_RequestID]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetChatIsChannel(AValue: Boolean);
+begin
+  Booleans[s_ChatIsChannel]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetChatIsForum(AValue: Boolean);
+begin
+  Booleans[s_ChatIsForum]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetChatHasUsername(AValue: Boolean);
+begin
+  Booleans[s_ChatHasUsername]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetChatIsCreated(AValue: Boolean);
+begin
+  Booleans[s_ChatIsCreated]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetUserAdminRights(AValue: TJSONObject);
+begin
+  Objects[s_UserAdministratorRights]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetBotAdminRights(AValue: TJSONObject);
+begin
+  Objects[s_BotAdministratorRights]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetBotIsMember(AValue: Boolean);
+begin
+  Booleans[s_BotIsMember]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetReqTitle(AValue: Boolean);
+begin
+  Booleans[s_RequestTitle]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetReqUsername(AValue: Boolean);
+begin
+  Booleans[s_RequestUsername]:=AValue;
+end;
+
+procedure TKeyboardButtonRequestChat.SetReqPhoto(AValue: Boolean);
+begin
+  Booleans[s_RequestPhoto]:=AValue;
+end;
+
+constructor TKeyboardButtonRequestChat.Create(ARequestID: Integer;
+  AChatIsChannel: Boolean);
+begin
+  inherited Create;
+  RequestID:=ARequestID;
+  ChatIsChannel:=AChatIsChannel;
+end;
+
+{ TRichMessageButton }
+
+function TRichMessageButton.GetText: String;
+begin
+  Result:=Get(s_Text, EmptyStr);
+end;
+
+function TRichMessageButton.GetStyle: String;
+begin
+  Result:=Get(s_Style, EmptyStr);
+end;
+
+function TRichMessageButton.Geturl: String;
+begin
+  Result:=Get(s_Url, EmptyStr);
+end;
+
+function TRichMessageButton.Getcallback_data: String;
+begin
+  Result:=Get(s_CallbackData, EmptyStr);
+end;
+
+function TRichMessageButton.Getswitch_inline_query: String;
+begin
+  Result:=Get(s_SwitchInlineQuery, EmptyStr);
+end;
+
+function TRichMessageButton.Getswitch_inline_query_current_chat: String;
+begin
+  Result:=Get(s_SwitchInlineQueryCurrentChat, EmptyStr);
+end;
+
+function TRichMessageButton.GetWebApp: TWebAppInfo;
+begin
+  if Find(s_WebApp, jtObject) is TWebAppInfo then
+    Result:=TWebAppInfo(Find(s_WebApp, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TRichMessageButton.GetLoginUrl: TLoginUrl;
+begin
+  if Find(s_LoginUrl, jtObject) is TLoginUrl then
+    Result:=TLoginUrl(Find(s_LoginUrl, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TRichMessageButton.GetCopyText: TCopyTextButton;
+begin
+  if Find(s_CopyText, jtObject) is TCopyTextButton then
+    Result:=TCopyTextButton(Find(s_CopyText, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TRichMessageButton.GetDisabled: Boolean;
+begin
+  Result:=Assigned(Find(s_Disabled));
+end;
+
+procedure TRichMessageButton.SetText(AValue: String);
+begin
+  Strings[s_Text]:=AValue;
+end;
+
+procedure TRichMessageButton.SetStyle(AValue: String);
+begin
+  Strings[s_Style]:=AValue;
+end;
+
+procedure TRichMessageButton.Seturl(AValue: String);
+begin
+  Strings[s_Url]:=AValue;
+end;
+
+procedure TRichMessageButton.Setcallback_data(AValue: String);
+begin
+  Strings[s_CallbackData]:=AValue;
+end;
+
+procedure TRichMessageButton.Setswitch_inline_query(AValue: String);
+begin
+  Strings[s_SwitchInlineQuery]:=AValue;
+end;
+
+procedure TRichMessageButton.Setswitch_inline_query_current_chat(AValue: String);
+begin
+  Strings[s_SwitchInlineQueryCurrentChat]:=AValue;
+end;
+
+procedure TRichMessageButton.SetWebApp(AValue: TWebAppInfo);
+begin
+  Objects[s_WebApp]:=AValue;
+end;
+
+procedure TRichMessageButton.SetLoginUrl(AValue: TLoginUrl);
+begin
+  Objects[s_LoginUrl]:=AValue;
+end;
+
+procedure TRichMessageButton.SetCopyText(AValue: TCopyTextButton);
+begin
+  Objects[s_CopyText]:=AValue;
+end;
+
+procedure TRichMessageButton.SetDisabled(AValue: Boolean);
+begin
+  if AValue then
+    Objects[s_Disabled]:=TDisabledButton.Create
+  else if IndexOfName(s_Disabled)>-1 then
+    Delete(s_Disabled);
+end;
+
+constructor TRichMessageButton.Create(const AText: String);
+begin
+  inherited Create;
+  Add(s_Text, AText);
+end;
+
+{ TRichMessageButtons }
+
+function TRichMessageButtons.Add(aButton: TRichMessageButton): Integer;
+begin
+  Result:=inherited Add(aButton as TJSONObject);
+end;
+
+function TRichMessageButtons.AddButton(const AText, AUrl: String): TRichMessageButton;
+begin
+  Result:=TRichMessageButton.Create(AText);
+  Result.url:=AUrl;
+  Add(Result);
+end;
+
+function TRichMessageButtons.AddCallbackButton(const AText, ACallbackData: String): TRichMessageButton;
+begin
+  Result:=TRichMessageButton.Create(AText);
+  Result.callback_data:=ACallbackData;
+  Add(Result);
+end;
+
+function TRichMessageButtons.AddCopyButton(const AText, ATextToCopy: String): TRichMessageButton;
+begin
+  Result:=TRichMessageButton.Create(AText);
+  Result.copy_text:=TCopyTextButton.Create(ATextToCopy);
+  Add(Result);
+end;
+
+{ TInputRichBlockButtons }
+
+function TInputRichBlockButtons.GetButtons: TRichMessageButtons;
+begin
+  if Find(s_Buttons, jtArray) is TRichMessageButtons then
+    Result:=TRichMessageButtons(Find(s_Buttons, jtArray))
+  else
+    Result:=nil;
+end;
+
+function TInputRichBlockButtons.GetAlign: String;
+begin
+  Result:=Get(s_Align, EmptyStr);
+end;
+
+procedure TInputRichBlockButtons.SetAlign(AValue: String);
+begin
+  Strings[s_Align]:=AValue;
+end;
+
+constructor TInputRichBlockButtons.Create;
+begin
+  inherited Create;
+  Add(s_Type, 'buttons');
+  Add(s_Buttons, TRichMessageButtons.Create);
+end;
+
+{ TInputRichMessage }
+
+function TInputRichMessage.GetMarkdown: String;
+begin
+  Result:=Get(s_Markdown, EmptyStr);
+end;
+
+function TInputRichMessage.GetHTML: String;
+begin
+  Result:=Get(s_HTML, EmptyStr);
+end;
+
+function TInputRichMessage.GetBlocks: TJSONArray;
+begin
+  Result:=Find(s_Blocks, jtArray) as TJSONArray;
+end;
+
+function TInputRichMessage.GetIsRTL: Boolean;
+begin
+  Result:=Get(s_IsRTL, False);
+end;
+
+function TInputRichMessage.GetSkipEntityDetection: Boolean;
+begin
+  Result:=Get(s_SkipEntityDetection, False);
+end;
+
+procedure TInputRichMessage.SetMarkdown(AValue: String);
+begin
+  Strings[s_Markdown]:=AValue;
+end;
+
+procedure TInputRichMessage.SetHTML(AValue: String);
+begin
+  Strings[s_HTML]:=AValue;
+end;
+
+procedure TInputRichMessage.SetBlocks(AValue: TJSONArray);
+begin
+  Arrays[s_Blocks]:=AValue;
+end;
+
+procedure TInputRichMessage.SetIsRTL(AValue: Boolean);
+begin
+  Booleans[s_IsRTL]:=AValue;
+end;
+
+procedure TInputRichMessage.SetSkipEntityDetection(AValue: Boolean);
+begin
+  Booleans[s_SkipEntityDetection]:=AValue;
+end;
+
+constructor TInputRichMessage.Create;
+begin
+  inherited Create;
+end;
+
+class function TInputRichMessage.CreateFromMarkdown(const AText: String): TInputRichMessage;
+begin
+  Result:=TInputRichMessage.Create;
+  Result.Markdown:=AText;
+end;
+
+class function TInputRichMessage.CreateFromHTML(const AText: String): TInputRichMessage;
+begin
+  Result:=TInputRichMessage.Create;
+  Result.HTML:=AText;
+end;
+
+function TInputRichMessage.AddButtonsBlock: TInputRichBlockButtons;
+var
+  lBlocks: TJSONArray;
+begin
+  Result:=TInputRichBlockButtons.Create;
+  lBlocks:=Find(s_Blocks, jtArray) as TJSONArray;
+  if not Assigned(lBlocks) then
+  begin
+    lBlocks:=TJSONArray.Create;
+    Arrays[s_Blocks]:=lBlocks;
+  end;
+  lBlocks.Add(Result);
+end;
+
 { TStringHash }
 
 class function TStringHash.hash(s: String; n: Integer): Integer;
@@ -1747,6 +2746,68 @@ begin
   Strings[s_Style]:=AValue;
 end;
 
+function TKeyboardButton.GetIconCustomEmojiID: String;
+begin
+  Result:=Get(s_IconCustomEmojiID, EmptyStr);
+end;
+
+function TKeyboardButton.GetRequestPoll: TKeyboardButtonPollType;
+begin
+  if Find(s_RequestPoll, jtObject) is TKeyboardButtonPollType then
+    Result:=TKeyboardButtonPollType(Find(s_RequestPoll, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TKeyboardButton.GetWebApp: TWebAppInfo;
+begin
+  if Find(s_WebApp, jtObject) is TWebAppInfo then
+    Result:=TWebAppInfo(Find(s_WebApp, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TKeyboardButton.GetRequestUsers: TKeyboardButtonRequestUsers;
+begin
+  if Find(s_RequestUsers, jtObject) is TKeyboardButtonRequestUsers then
+    Result:=TKeyboardButtonRequestUsers(Find(s_RequestUsers, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TKeyboardButton.GetRequestChat: TKeyboardButtonRequestChat;
+begin
+  if Find(s_RequestChat, jtObject) is TKeyboardButtonRequestChat then
+    Result:=TKeyboardButtonRequestChat(Find(s_RequestChat, jtObject))
+  else
+    Result:=nil;
+end;
+
+procedure TKeyboardButton.SetIconCustomEmojiID(AValue: String);
+begin
+  Strings[s_IconCustomEmojiID]:=AValue;
+end;
+
+procedure TKeyboardButton.SetRequestPoll(AValue: TKeyboardButtonPollType);
+begin
+  Objects[s_RequestPoll]:=AValue;
+end;
+
+procedure TKeyboardButton.SetWebApp(AValue: TWebAppInfo);
+begin
+  Objects[s_WebApp]:=AValue;
+end;
+
+procedure TKeyboardButton.SetRequestUsers(AValue: TKeyboardButtonRequestUsers);
+begin
+  Objects[s_RequestUsers]:=AValue;
+end;
+
+procedure TKeyboardButton.SetRequestChat(AValue: TKeyboardButtonRequestChat);
+begin
+  Objects[s_RequestChat]:=AValue;
+end;
+
 constructor TKeyboardButton.Create(const AText: String);
 begin
   inherited Create;
@@ -1825,6 +2886,16 @@ end;
 function TReplyMarkup.GetOneTimeKeyboard: Boolean;
 begin
   Result:=Get(s_OneTimeKeyboard, False);
+end;
+
+function TReplyMarkup.GetIsPersistent: Boolean;
+begin
+  Result:=Get(s_IsPersistent, False);
+end;
+
+procedure TReplyMarkup.SetIsPersistent(AValue: Boolean);
+begin
+  Booleans[s_IsPersistent]:=AValue;
 end;
 
 function TReplyMarkup.GetRemoveKeyboard: Boolean;
@@ -2034,8 +3105,12 @@ end;
 
 function TInlineKeyboardButton.CheckOptnlNull: Boolean;
 begin
+  { Exactly one of the optional action fields must be used }
   Result:=not (Assigned(Find(s_CallbackData)) or Assigned(Find(s_SwitchInlineQuery)) or
-    Assigned(Find(s_SwitchInlineQueryCurrentChat)) or Assigned(Find(s_Url)))
+    Assigned(Find(s_SwitchInlineQueryCurrentChat)) or Assigned(Find(s_Url)) or
+    Assigned(Find(s_WebApp)) or Assigned(Find(s_LoginUrl)) or Assigned(Find(s_CopyText)) or
+    Assigned(Find(s_CallbackGame)) or Assigned(Find(s_Pay)) or
+    Assigned(Find(s_SwitchInlineQueryChosenChat)) or Assigned(Find(s_Disabled)))
 end;
 
 procedure TInlineKeyboardButton.CheckOptnlAndSet(const ParamName, ParamValue: String);
@@ -2083,6 +3158,120 @@ end;
 procedure TInlineKeyboardButton.Seturl(AValue: String);
 begin
   CheckOptnlAndSet(s_url, AValue);
+end;
+
+function TInlineKeyboardButton.GetIconCustomEmojiID: String;
+begin
+  Result:=Get(s_IconCustomEmojiID, EmptyStr);
+end;
+
+function TInlineKeyboardButton.GetWebApp: TWebAppInfo;
+begin
+  if Find(s_WebApp, jtObject) is TWebAppInfo then
+    Result:=TWebAppInfo(Find(s_WebApp, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TInlineKeyboardButton.GetLoginUrl: TLoginUrl;
+begin
+  if Find(s_LoginUrl, jtObject) is TLoginUrl then
+    Result:=TLoginUrl(Find(s_LoginUrl, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TInlineKeyboardButton.GetCopyText: TCopyTextButton;
+begin
+  if Find(s_CopyText, jtObject) is TCopyTextButton then
+    Result:=TCopyTextButton(Find(s_CopyText, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TInlineKeyboardButton.GetSwitchInlineQueryChosenChat: TSwitchInlineQueryChosenChat;
+begin
+  if Find(s_SwitchInlineQueryChosenChat, jtObject) is TSwitchInlineQueryChosenChat then
+    Result:=TSwitchInlineQueryChosenChat(Find(s_SwitchInlineQueryChosenChat, jtObject))
+  else
+    Result:=nil;
+end;
+
+function TInlineKeyboardButton.GetPay: Boolean;
+begin
+  Result:=Assigned(Find(s_Pay));
+end;
+
+function TInlineKeyboardButton.GetCallbackGame: Boolean;
+begin
+  Result:=Assigned(Find(s_CallbackGame));
+end;
+
+function TInlineKeyboardButton.GetDisabled: Boolean;
+begin
+  Result:=Assigned(Find(s_Disabled));
+end;
+
+procedure TInlineKeyboardButton.SetIconCustomEmojiID(AValue: String);
+begin
+  Strings[s_IconCustomEmojiID]:=AValue;
+end;
+
+procedure TInlineKeyboardButton.SetWebApp(AValue: TWebAppInfo);
+begin
+  if CheckOptnlNull or Assigned(Find(s_WebApp)) then // Only one optional parameter must be set!
+    Objects[s_WebApp]:=AValue;
+end;
+
+procedure TInlineKeyboardButton.SetLoginUrl(AValue: TLoginUrl);
+begin
+  if CheckOptnlNull or Assigned(Find(s_LoginUrl)) then // Only one optional parameter must be set!
+    Objects[s_LoginUrl]:=AValue;
+end;
+
+procedure TInlineKeyboardButton.SetCopyText(AValue: TCopyTextButton);
+begin
+  if CheckOptnlNull or Assigned(Find(s_CopyText)) then // Only one optional parameter must be set!
+    Objects[s_CopyText]:=AValue;
+end;
+
+procedure TInlineKeyboardButton.SetSwitchInlineQueryChosenChat(AValue: TSwitchInlineQueryChosenChat);
+begin
+  if CheckOptnlNull or Assigned(Find(s_SwitchInlineQueryChosenChat)) then // Only one optional parameter must be set!
+    Objects[s_SwitchInlineQueryChosenChat]:=AValue;
+end;
+
+procedure TInlineKeyboardButton.SetPay(AValue: Boolean);
+begin
+  if AValue then
+  begin
+    if CheckOptnlNull or Assigned(Find(s_Pay)) then
+      Booleans[s_Pay]:=True;
+  end
+  else if IndexOfName(s_Pay)>-1 then
+    Delete(s_Pay);
+end;
+
+procedure TInlineKeyboardButton.SetCallbackGame(AValue: Boolean);
+begin
+  if AValue then
+  begin
+    if CheckOptnlNull or Assigned(Find(s_CallbackGame)) then
+      Objects[s_CallbackGame]:=TJSONObject.Create;
+  end
+  else if IndexOfName(s_CallbackGame)>-1 then
+    Delete(s_CallbackGame);
+end;
+
+procedure TInlineKeyboardButton.SetDisabled(AValue: Boolean);
+begin
+  if AValue then
+  begin
+    if CheckOptnlNull or Assigned(Find(s_Disabled)) then
+      Objects[s_Disabled]:=TDisabledButton.Create;
+  end
+  else if IndexOfName(s_Disabled)>-1 then
+    Delete(s_Disabled);
 end;
 
 constructor TInlineKeyboardButton.Create(const AText: String);
@@ -3760,6 +4949,61 @@ begin
     end;
   finally
     sendObj.Free;
+  end;
+end;
+
+function TTelegramSender.sendRichMessage(chat_id: Int64; ARichMessage: TInputRichMessage;
+  DisableNotification: Boolean; MessageThreadID: Integer; const BusinessConnectionID: String;
+  ReplyMarkup: TReplyMarkup): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  if not Assigned(ARichMessage) then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    if not BusinessConnectionID.IsEmpty then
+      Add(s_BsnsCnctnID, BusinessConnectionID);
+    Add(s_ChatId, chat_id);
+    if MessageThreadID<>_nullThrd then
+      Add(s_MsgThrdID, MessageThreadID);
+    Add(s_RichMessage, ARichMessage.Clone);
+    if DisableNotification then
+      Add(s_DsblNtfctn, DisableNotification);
+    if Assigned(ReplyMarkup) then
+      Add(s_ReplyMarkup, ReplyMarkup.Clone); // Clone of ReplyMarkup object will have released with sendObject
+    Result:=SendMethod(s_SendRichMessage, sendObj);
+  finally
+    Free;
+  end;
+end;
+
+function TTelegramSender.editMessageTextRich(ARichMessage: TInputRichMessage;
+  chat_id: Int64; message_id: Int64; inline_message_id: String;
+  ReplyMarkup: TReplyMarkup): Boolean;
+var
+  sendObj: TJSONObject;
+begin
+  Result:=False;
+  if not Assigned(ARichMessage) then
+    Exit;
+  sendObj:=TJSONObject.Create;
+  with sendObj do
+  try
+    if chat_id<>0 then
+      Add(s_ChatId, chat_id);
+    if message_id<>0 then
+      Add(s_MessageId, message_id);
+    if inline_message_id<>EmptyStr then
+      Add(s_InlineMessageId, inline_message_id);
+    Add(s_RichMessage, ARichMessage.Clone);
+    if Assigned(ReplyMarkup) then
+      Add(s_ReplyMarkup, ReplyMarkup.Clone); // Clone of ReplyMarkup object will have released with sendObject
+    Result:=SendMethod(s_editMessageText, sendObj);
+  finally
+    Free;
   end;
 end;
 

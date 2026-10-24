@@ -19,6 +19,42 @@ uses
 
 type
 
+  { TTestMarkupCompletion }
+  { Coverage of the previously missing markup fields: web apps, login urls,
+    copy text, pay and disabled buttons, poll and user/chat requests }
+
+  TTestMarkupCompletion = class(TTestCase)
+  protected
+    function ParseObject(const AJSON: String): TJSONObject;
+  published
+    procedure ReplyKeyboardIsPersistent;
+    procedure InlineMarkupForceReply;
+    procedure InlineButtonCopyText;
+    procedure InlineButtonPay;
+    procedure InlineButtonDisabled;
+    procedure InlineButtonWebApp;
+    procedure InlineButtonLoginUrl;
+    procedure InlineButtonSwitchInlineQueryChosenChat;
+    procedure KeyboardButtonRequestPoll;
+    procedure KeyboardButtonRequestUsers;
+    procedure KeyboardButtonRequestChat;
+  end;
+
+  { TTestRichMessages }
+  { Rich messages of the Bot API 10.1+ }
+
+  TTestRichMessages = class(TTestCase)
+  protected
+    function ParseObject(const AJSON: String): TJSONObject;
+  published
+    procedure InputRichMessageMarkdown;
+    procedure InputRichMessageHTML;
+    procedure InputRichMessageBlocks;
+    procedure InputRichMessageFlags;
+    procedure RichMessageButtonFactories;
+    procedure RichMessageButtonProperties;
+  end;
+
   { TTestKeyboards }
 
   TTestKeyboards = class(TTestCase)
@@ -583,8 +619,443 @@ begin
   AssertEquals(Ord(mtUnknown), Ord(StringToMediaType('')));
 end;
 
+
+{ TTestMarkupCompletion }
+
+function TTestMarkupCompletion.ParseObject(const AJSON: String): TJSONObject;
+begin
+  Result:=GetJSON(AJSON) as TJSONObject;
+end;
+
+procedure TTestMarkupCompletion.ReplyKeyboardIsPersistent;
+var
+  lMarkup: TReplyMarkup;
+  lJSON: TJSONObject;
+begin
+  lMarkup:=TReplyMarkup.Create;
+  try
+    lMarkup.CreateReplyKeyboard.Add.AddButton('Btn');
+    lMarkup.IsPersistent:=True;
+    AssertTrue(lMarkup.IsPersistent);
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertTrue('is_persistent', lJSON.Booleans['is_persistent']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lMarkup.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineMarkupForceReply;
+var
+  lMarkup: TReplyMarkup;
+  lJSON: TJSONObject;
+begin
+  lMarkup:=TReplyMarkup.Create;
+  try
+    lMarkup.CreateInlineKeyBoard.AddButton('B', 'cb');
+    lMarkup.ForceReply:=True; // force_reply is allowed in InlineKeyboardMarkup since Bot API 10.3
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertTrue('inline keyboard present', lJSON.Find('inline_keyboard', jtArray)<>nil);
+      AssertTrue('force_reply', lJSON.Booleans['force_reply']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lMarkup.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonCopyText;
+var
+  lButton: TInlineKeyboardButton;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('Copy me');
+  try
+    lButton.copy_text:=TCopyTextButton.Create('text to copy');
+    AssertEquals('text to copy', lButton.copy_text.Text);
+    // another optional action must not replace copy_text
+    lButton.url:='http://example.com';
+    AssertEquals(EmptyStr, lButton.url);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertEquals('text to copy', lJSON.Objects['copy_text'].Strings['text']);
+      AssertTrue('no url', lJSON.Find('url')=nil);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonPay;
+var
+  lButton: TInlineKeyboardButton;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('Pay with Stars');
+  try
+    lButton.pay:=True;
+    AssertTrue(lButton.pay);
+    // callback_data must not replace pay
+    lButton.callback_data:='cb';
+    AssertEquals(EmptyStr, lButton.callback_data);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertTrue('pay', lJSON.Booleans['pay']);
+      AssertTrue('no callback_data', lJSON.Find('callback_data')=nil);
+    finally
+      lJSON.Free;
+    end;
+    lButton.pay:=False;
+    AssertFalse(lButton.pay);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertTrue('pay removed', lJSON.Find('pay')=nil);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonDisabled;
+var
+  lButton: TInlineKeyboardButton;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('N/A');
+  try
+    lButton.disabled:=True;
+    AssertTrue(lButton.disabled);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertNotNull('disabled object present', lJSON.Find('disabled', jtObject));
+    finally
+      lJSON.Free;
+    end;
+    lButton.disabled:=False;
+    AssertFalse(lButton.disabled);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertTrue('disabled removed', lJSON.Find('disabled')=nil);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonWebApp;
+var
+  lButton: TInlineKeyboardButton;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('Open app');
+  try
+    lButton.web_app:=TWebAppInfo.Create('https://example.com/app');
+    lButton.IconCustomEmojiID:='emoji123';
+    AssertEquals('https://example.com/app', lButton.web_app.Url);
+    AssertEquals('emoji123', lButton.IconCustomEmojiID);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertEquals('https://example.com/app', lJSON.Objects['web_app'].Strings['url']);
+      AssertEquals('emoji123', lJSON.Strings['icon_custom_emoji_id']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonLoginUrl;
+var
+  lButton: TInlineKeyboardButton;
+  lLogin: TLoginUrl;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('Login');
+  try
+    lLogin:=TLoginUrl.Create('https://example.com/auth');
+    lLogin.ForwardText:='Continue';
+    lLogin.RequestWriteAccess:=True;
+    lButton.login_url:=lLogin;
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertEquals('https://example.com/auth', lJSON.Objects['login_url'].Strings['url']);
+      AssertEquals('Continue', lJSON.Objects['login_url'].Strings['forward_text']);
+      AssertTrue('request_write_access', lJSON.Objects['login_url'].Booleans['request_write_access']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.InlineButtonSwitchInlineQueryChosenChat;
+var
+  lButton: TInlineKeyboardButton;
+  lSwitch: TSwitchInlineQueryChosenChat;
+  lJSON: TJSONObject;
+begin
+  lButton:=TInlineKeyboardButton.Create('Share');
+  try
+    lSwitch:=TSwitchInlineQueryChosenChat.Create;
+    lSwitch.Query:='gift';
+    lSwitch.AllowUserChats:=True;
+    lSwitch.AllowGroupChats:=True;
+    lButton.switch_inline_query_chosen_chat:=lSwitch;
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertEquals('gift', lJSON.Objects['switch_inline_query_chosen_chat'].Strings['query']);
+      AssertTrue('allow_user_chats', lJSON.Objects['switch_inline_query_chosen_chat'].Booleans['allow_user_chats']);
+      AssertTrue('allow_group_chats', lJSON.Objects['switch_inline_query_chosen_chat'].Booleans['allow_group_chats']);
+      AssertFalse('allow_bot_chats', lJSON.Objects['switch_inline_query_chosen_chat'].Get('allow_bot_chats', False));
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lButton.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.KeyboardButtonRequestPoll;
+var
+  lMarkup: TReplyMarkup;
+  lButtons: TKeyboardButtons;
+  lJSON: TJSONObject;
+begin
+  lMarkup:=TReplyMarkup.Create;
+  try
+    lButtons:=lMarkup.CreateReplyKeyboard.Add;
+    lButtons.AddButton('Create poll');
+    lButtons.Buttons[0].RequestPoll:=TKeyboardButtonPollType.Create('quiz');
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertEquals('quiz', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_poll'].Strings['type']);
+    finally
+      lJSON.Free;
+    end;
+    // an empty poll type must not be sent
+    lButtons.Buttons[0].RequestPoll:=TKeyboardButtonPollType.Create('');
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertTrue('empty type omitted',
+        lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_poll'].Find('type')=nil);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lMarkup.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.KeyboardButtonRequestUsers;
+var
+  lMarkup: TReplyMarkup;
+  lButtons: TKeyboardButtons;
+  lRequest: TKeyboardButtonRequestUsers;
+  lJSON: TJSONObject;
+begin
+  lMarkup:=TReplyMarkup.Create;
+  lRequest:=TKeyboardButtonRequestUsers.Create(77);
+  lRequest.MaxQuantity:=5;
+  lRequest.RequestName:=True;
+  try
+    lButtons:=lMarkup.CreateReplyKeyboard.Add;
+    lButtons.AddButton('Share users');
+    lButtons.Buttons[0].RequestUsers:=lRequest;
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertEquals(77, lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_users'].Integers['request_id']);
+      AssertEquals(5, lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_users'].Integers['max_quantity']);
+      AssertTrue('request_name', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_users'].Booleans['request_name']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lMarkup.Free;
+  end;
+end;
+
+procedure TTestMarkupCompletion.KeyboardButtonRequestChat;
+var
+  lMarkup: TReplyMarkup;
+  lButtons: TKeyboardButtons;
+  lRequest: TKeyboardButtonRequestChat;
+  lJSON: TJSONObject;
+begin
+  lMarkup:=TReplyMarkup.Create;
+  lRequest:=TKeyboardButtonRequestChat.Create(78, False);
+  lRequest.ChatIsForum:=True;
+  lRequest.BotIsMember:=True;
+  lRequest.RequestTitle:=True;
+  try
+    lButtons:=lMarkup.CreateReplyKeyboard.Add;
+    lButtons.AddButton('Share chat');
+    lButtons.Buttons[0].RequestChat:=lRequest;
+    lJSON:=ParseObject(lMarkup.AsJSON);
+    try
+      AssertEquals(78, lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_chat'].Integers['request_id']);
+      AssertFalse('chat_is_channel', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_chat'].Booleans['chat_is_channel']);
+      AssertTrue('chat_is_forum', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_chat'].Booleans['chat_is_forum']);
+      AssertTrue('bot_is_member', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_chat'].Booleans['bot_is_member']);
+      AssertTrue('request_title', lJSON.Arrays['keyboard'].Arrays[0].Objects[0].Objects['request_chat'].Booleans['request_title']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lMarkup.Free;
+  end;
+end;
+
+{ TTestRichMessages }
+
+function TTestRichMessages.ParseObject(const AJSON: String): TJSONObject;
+begin
+  Result:=GetJSON(AJSON) as TJSONObject;
+end;
+
+procedure TTestRichMessages.InputRichMessageMarkdown;
+var
+  lRich: TInputRichMessage;
+  lJSON: TJSONObject;
+begin
+  lRich:=TInputRichMessage.CreateFromMarkdown('# Heading' + LineEnding + 'Some *bold* text');
+  try
+    AssertEquals('# Heading' + LineEnding + 'Some *bold* text', lRich.Markdown);
+    lJSON:=ParseObject(lRich.AsJSON);
+    try
+      AssertTrue('markdown present', lJSON.Find('markdown')<>nil);
+      AssertTrue('no html', lJSON.Find('html')=nil);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lRich.Free;
+  end;
+end;
+
+procedure TTestRichMessages.InputRichMessageHTML;
+var
+  lRich: TInputRichMessage;
+  lJSON: TJSONObject;
+begin
+  lRich:=TInputRichMessage.CreateFromHTML('<h1>Heading</h1>');
+  try
+    AssertEquals('<h1>Heading</h1>', lRich.HTML);
+    lJSON:=ParseObject(lRich.AsJSON);
+    try
+      AssertEquals('<h1>Heading</h1>', lJSON.Strings['html']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lRich.Free;
+  end;
+end;
+
+procedure TTestRichMessages.InputRichMessageBlocks;
+var
+  lRich: TInputRichMessage;
+  lBlock: TInputRichBlockButtons;
+  lJSON: TJSONObject;
+begin
+  lRich:=TInputRichMessage.Create;
+  try
+    lBlock:=lRich.AddButtonsBlock;
+    lBlock.Buttons.AddButton('Site', 'https://example.com');
+    lBlock.Buttons.AddCallbackButton('Press', 'cb1');
+    lBlock.Align:='center';
+    AssertEquals(1, lRich.Blocks.Count);
+    lJSON:=ParseObject(lRich.AsJSON);
+    try
+      AssertEquals('buttons', lJSON.Arrays['blocks'].Objects[0].Strings['type']);
+      AssertEquals('center', lJSON.Arrays['blocks'].Objects[0].Strings['align']);
+      AssertEquals(2, lJSON.Arrays['blocks'].Objects[0].Arrays['buttons'].Count);
+      AssertEquals('Site', lJSON.Arrays['blocks'].Objects[0].Arrays['buttons'].Objects[0].Strings['text']);
+      AssertEquals('https://example.com', lJSON.Arrays['blocks'].Objects[0].Arrays['buttons'].Objects[0].Strings['url']);
+      AssertEquals('cb1', lJSON.Arrays['blocks'].Objects[0].Arrays['buttons'].Objects[1].Strings['callback_data']);
+    finally
+      lJSON.Free;
+    end;
+  finally
+    lRich.Free;
+  end;
+end;
+
+procedure TTestRichMessages.InputRichMessageFlags;
+var
+  lRich: TInputRichMessage;
+begin
+  lRich:=TInputRichMessage.CreateFromMarkdown('text');
+  try
+    lRich.IsRTL:=True;
+    lRich.SkipEntityDetection:=True;
+    AssertTrue(lRich.IsRTL);
+    AssertTrue(lRich.SkipEntityDetection);
+  finally
+    lRich.Free;
+  end;
+end;
+
+procedure TTestRichMessages.RichMessageButtonFactories;
+var
+  lButtons: TRichMessageButtons;
+begin
+  lButtons:=TRichMessageButtons.Create;
+  try
+    lButtons.AddButton('Url btn', 'https://example.com');
+    lButtons.AddCallbackButton('Callback btn', 'data');
+    lButtons.AddCopyButton('Copy btn', 'copied text');
+    AssertEquals(3, lButtons.Count);
+    AssertEquals('Url btn', (lButtons.Objects[0] as TRichMessageButton).text);
+    AssertEquals('https://example.com', (lButtons.Objects[0] as TRichMessageButton).url);
+    AssertEquals('data', (lButtons.Objects[1] as TRichMessageButton).callback_data);
+    AssertEquals('copied text', (lButtons.Objects[2] as TRichMessageButton).copy_text.Text);
+  finally
+    lButtons.Free;
+  end;
+end;
+
+procedure TTestRichMessages.RichMessageButtonProperties;
+var
+  lButton: TRichMessageButton;
+  lJSON: TJSONObject;
+begin
+  lButton:=TRichMessageButton.Create('Danger');
+  try
+    lButton.Style:='danger';
+    lButton.disabled:=True;
+    AssertEquals('danger', lButton.Style);
+    AssertTrue(lButton.disabled);
+    lJSON:=ParseObject(lButton.AsJSON);
+    try
+      AssertEquals('danger', lJSON.Strings['style']);
+      AssertNotNull('disabled present', lJSON.Find('disabled', jtObject));
+    finally
+      lJSON.Free;
+    end;
+    lButton.disabled:=False;
+    AssertFalse(lButton.disabled);
+  finally
+    lButton.Free;
+  end;
+end;
+
 initialization
   RegisterTest(TTestKeyboards);
+  RegisterTest(TTestMarkupCompletion);
+  RegisterTest(TTestRichMessages);
   RegisterTest(TTestRequestTypes);
 
 end.

@@ -121,6 +121,8 @@ type
     procedure getUpdatesFiresCommandHandler;
     procedure getUpdatesSkipsBannedUser;
     procedure sendPollPassesExplanation;
+    procedure sendRichMessageBuildsRequest;
+    procedure editMessageTextRichBuildsRequest;
     procedure getFileParsesFileObject;
     procedure sendPhotoByFileNameUploadsFile;
     procedure requestWhenAnswerBuildsInlineReply;
@@ -552,6 +554,57 @@ begin
     AssertEquals('quiz', lBody.Strings['type']);
     AssertEquals(2, lBody.Arrays['options'].Count);
     AssertEquals('Yes', lBody.Arrays['options'].Strings[0]);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.sendRichMessageBuildsRequest;
+var
+  lRich: TInputRichMessage;
+  lBody: TJSONObject;
+begin
+  MockResponse('{"message_id":80,"date":1,"chat":{"id":42,"type":"private"}}');
+  lRich:=TInputRichMessage.CreateFromMarkdown('# Hello rich');
+  try
+    AssertTrue('sendRichMessage must succeed', Bot.sendRichMessage(42, lRich));
+  finally
+    lRich.Free;
+  end;
+  AssertEquals('Request URL', TelegramAPI_URL+TestToken+'/sendRichMessage', TMockHTTPClient.LastURL);
+  lBody:=LastRequestBody;
+  try
+    AssertEquals(42, lBody.Integers['chat_id']);
+    AssertEquals('# Hello rich', lBody.Objects['rich_message'].Strings['markdown']);
+    AssertTrue('rich_message present', lBody.Find('rich_message', jtObject)<>nil);
+  finally
+    lBody.Free;
+  end;
+end;
+
+procedure TTestSenderMock.editMessageTextRichBuildsRequest;
+var
+  lRich: TInputRichMessage;
+  lBlock: TInputRichBlockButtons;
+  lBody: TJSONObject;
+begin
+  MockResponse('true');
+  lRich:=TInputRichMessage.Create;
+  try
+    lBlock:=lRich.AddButtonsBlock;
+    lBlock.Buttons.AddCallbackButton('Press me', 'rich-cb');
+    AssertTrue('editMessageTextRich must succeed', Bot.editMessageTextRich(lRich, 42, 100));
+  finally
+    lRich.Free;
+  end;
+  AssertEquals('Request URL', TelegramAPI_URL+TestToken+'/editMessageText', TMockHTTPClient.LastURL);
+  lBody:=LastRequestBody;
+  try
+    AssertEquals(42, lBody.Integers['chat_id']);
+    AssertEquals(100, lBody.Integers['message_id']);
+    AssertEquals(1, lBody.Objects['rich_message'].Arrays['blocks'].Count);
+    AssertEquals('rich-cb', lBody.Objects['rich_message'].Arrays['blocks'].Objects[0]
+      .Arrays['buttons'].Objects[0].Strings['callback_data']);
   finally
     lBody.Free;
   end;

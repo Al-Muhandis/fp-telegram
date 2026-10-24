@@ -34,6 +34,7 @@ type
   TTelegramDocument = class;
   TTelegramReactionType = class;
   TTelegramReactionCount = class;
+  TTelegramRichMessage = class;
   TTelegramMessageReactionUpdated = class;
   TTelegramMessageReactionCountUpdated = class;
 
@@ -129,6 +130,7 @@ type
     FPhoto: TTelegramPhotoSizeList;
     FReplyToMessage: TTelegramMessageObj;
     FQuote: TTelegramTextQuote;
+    FRichMessage: TTelegramRichMessage;
     FSuccessfulPayment: TTelegramSuccessfulPayment;
     FViaBot: TTelegramUserObj;
     FVideo: TTelegramVideo;
@@ -151,6 +153,8 @@ type
     property ChatId: Int64 read fChatId;
     property ReplyToMessage: TTelegramMessageObj read FReplyToMessage;
     property Quote: TTelegramTextQuote read FQuote;
+    { Rich formatted message (Bot API 10.1+) }
+    property RichMessage: TTelegramRichMessage read FRichMessage;
     property Text: string read fText;
     property Entities: TTelegramUpdateObjList read fEntities;
     property Document: TTelegramDocument read FDocument;
@@ -173,6 +177,22 @@ type
   TTelegramExternalReplyInfo = class(TTelegramObj)
   public
     constructor Create(JSONObject: TJSONObject); override;
+  end;
+
+  { TTelegramRichMessage }
+  { A received rich formatted message (Bot API 10.1+): a list of blocks.
+    The complete raw JSON is available via AsString }
+
+  TTelegramRichMessage = class(TTelegramObj)
+  private
+    FIsRTL: Boolean;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    function BlockCount: Integer;
+    { Returns a newly created array with the clones of all RichMessageButton
+      objects of the buttons blocks; free it after use. Nil if there are no buttons }
+    function ExtractButtons: TJSONArray;
+    property IsRTL: Boolean read FIsRTL;
   end;
 
   { TTelegramTextQuote }
@@ -1512,6 +1532,9 @@ begin
   FQuote:=TTelegramTextQuote.CreateFromJSONObject(fJSON.Find('quote', jtObject) as TJSONObject)
     as TTelegramTextQuote;
 
+  FRichMessage:=TTelegramRichMessage.CreateFromJSONObject(
+    fJSON.Find('rich_message', jtObject) as TJSONObject) as TTelegramRichMessage;
+
   lJSONArray := fJSON.Find('entities', jtArray) as TJSONArray;
   if Assigned(lJSONArray) then
     for lJSONEnum in lJSONArray do
@@ -1542,6 +1565,7 @@ begin
   FChat.Free;
   FReplyToMessage.Free;
   FQuote.Free;
+  FRichMessage.Free;
   FPhoto.Free;
   FDocument.Free;
   FExternalReply.Free;
@@ -1582,6 +1606,51 @@ destructor TTelegramTextQuote.Destroy;
 begin
   FEntities.Free;
   inherited Destroy;
+end;
+
+{ TTelegramRichMessage }
+
+constructor TTelegramRichMessage.Create(JSONObject: TJSONObject);
+begin
+  inherited Create(JSONObject);
+  FIsRTL:=fJSON.Get('is_rtl', False);
+end;
+
+function TTelegramRichMessage.BlockCount: Integer;
+var
+  lJSONArray: TJSONArray;
+begin
+  Result:=0;
+  lJSONArray:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    Result:=lJSONArray.Count;
+end;
+
+function TTelegramRichMessage.ExtractButtons: TJSONArray;
+var
+  lBlocks, lButtons: TJSONArray;
+  lBlockEnum, lBtnEnum: TJSONEnum;
+begin
+  Result:=nil;
+  lBlocks:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if not Assigned(lBlocks) then
+    Exit;
+  for lBlockEnum in lBlocks do
+  begin
+    if lBlockEnum.Value.JSONType<>jtObject then
+      continue;
+    if (lBlockEnum.Value as TJSONObject).Get('type', EmptyStr)='buttons' then
+    begin
+      lButtons:=(lBlockEnum.Value as TJSONObject).Find('buttons', jtArray) as TJSONArray;
+      if Assigned(lButtons) then
+      begin
+        if not Assigned(Result) then
+          Result:=TJSONArray.Create;
+        for lBtnEnum in lButtons do
+          Result.Add(lBtnEnum.Value.Clone);
+      end;
+    end;
+  end;
 end;
 
 function TTelegramMessageObj.ContentFromMessage(out aText: String; out aMedia: String): TContentType;
