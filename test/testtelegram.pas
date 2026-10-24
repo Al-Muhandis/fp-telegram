@@ -25,12 +25,16 @@ type
     FJSONMediaGroup: String;
     FPhotoFile: String;
     FPhotoUrl: String;
+    FPrivateChatID: Int64;
     FUrl: String;
     FVideoFile: String;
     FVideoUrl: String;
   protected
     procedure SetUp; override;
   public
+    { Private chat with the bot: some keyboards (request_location, request_contact)
+      are allowed in private chats only }
+    property PrivateChatID: Int64 read FPrivateChatID;
     property VideoUrl: String read FVideoUrl;
     property Url: String read FUrl;
     property VideoFile: String read FVideoFile;
@@ -40,7 +44,6 @@ type
   published
     procedure sendMessage;
     procedure InlineKeyboard;
-    procedure SendReplyKeyboard;
     procedure sendVideo;
     procedure sendVideoByFileName;
     procedure sendVideoStream;
@@ -59,6 +62,25 @@ type
     procedure setMyCommands;
     procedure editMessageMediaStream;
     procedure getChatAdministators;
+    procedure sendRichMessageMarkdown;
+    procedure sendRichMessageWithButtonsAndEdit;
+    procedure sendPersistentKeyboard;
+    procedure sendInlineCopyTextButton;
+    procedure sendChatActionTyping;
+    procedure pinAndUnpinMessage;
+    procedure getUserProfilePhotosTest;
+    procedure editMessageCaptionTest;
+  end;
+
+  { TTestSenderManual }
+  { Tests that need a human interaction or a private chat started with the bot:
+    registered only when [Manual] Enable=1 is set in testtelegram.ini }
+
+  TTestSenderManual = class(TTestSender)
+  published
+    { request_location/request_contact buttons are allowed in private chats only,
+      so the bot must have a chat with the user: press Start in the bot's private chat }
+    procedure SendReplyKeyboard;
   end;
 
   { TTestProxySender }
@@ -137,6 +159,9 @@ const
   vd_cptn='Test video sent from %s. Test procedure: %s';
   pht_cptn='Test photo sent from %s. Test procedure: %s';
   Msg_md='Test message sent from %s. Test procedure: _%s_';
+
+  DefaultMediaGroupURLs='[{ "type" : "photo", "media" : "https://picsum.photos/seed/tgA/800/600" },'+
+    '{ "type" : "photo", "media" : "https://picsum.photos/seed/tgB/800/600" }]';
 
   s_Username='Username';
   s_Password='Password';
@@ -291,6 +316,9 @@ begin
   FPhotoUrl:=Conf.ReadString('Send', 'photourl', EmptyStr);
   FPhotoFile:=Conf.ReadString('Send', 'PhotoFile', EmptyStr);
   FJSONMediaGroup:=Conf.ReadString('Send', 'JSONMediaGroup', EmptyStr);
+  FPrivateChatID:=Conf.ReadInt64('Chat', 'PrivateID', 0);
+  if FPrivateChatID=0 then
+    FPrivateChatID:=ChatID;
 end;
 
 procedure TTestSender.sendMessage;
@@ -329,7 +357,7 @@ begin
       '. Description: '+Bot.LastErrorDescription);
 end;
 
-procedure TTestSender.SendReplyKeyboard;
+procedure TTestSenderManual.SendReplyKeyboard;
 var
   ReplyMarkup: TReplyMarkup;
   Buttons: TKeyboardButtons;
@@ -342,7 +370,7 @@ begin
     Buttons.Buttons[i].RequestLocation:=True;
     i:=Buttons.AddButton('Send contact');
     Buttons.Buttons[i].RequestContact:=True;
-    if not Bot.sendMessage(ChatID, Format(Msg_md, [Self.ClassName, TestName]), pmMarkdown,
+    if not Bot.sendMessage(PrivateChatID, Format(Msg_md, [Self.ClassName, TestName]), pmMarkdown,
       False, ReplyMarkup) then
       Fail('Connection error. See log');
   finally
@@ -435,7 +463,9 @@ var
   aMedias: TInputMediaArray;
   i: TJSONEnum;
 begin
-  aJSONData:=GetJSON(JSONMediaGroup) as TJSONArray;
+  { This test sends media by URL: take the list from JSONMediaGroupURLs.
+    JSONMediaGroup is used by sendMediaGroupByFileNames and contains local file names }
+  aJSONData:=GetJSON(Conf.ReadString('Send', 'JSONMediaGroupURLs', DefaultMediaGroupURLs)) as TJSONArray;
   aMedias:=TInputMediaArray.Create;
   try
     for i in aJSONData do
@@ -605,11 +635,183 @@ begin
   aAdministrators.Free;
 end;
 
+{ TTestSender: rich messages (Bot API 10.1+) }
+
+procedure TTestSender.sendRichMessageMarkdown;
+var
+  aRich: TInputRichMessage;
+begin
+  aRich:=TInputRichMessage.CreateFromMarkdown('# Rich heading' + LineEnding +
+    'Sent by *fp-telegram* unit test `' + TestName + '`');
+  try
+    if not Bot.sendRichMessage(ChatID, aRich) then
+      Fail('Connection error. See log');
+  finally
+    aRich.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  SaveJSONData(Bot.JSONResponse, '~richmessage.json');
+  if Assigned(Bot.JSONResponse) then
+    if (Bot.JSONResponse as TJSONObject).Find('rich_message', jtObject)=nil then
+      Fail('The sent message must contain the rich_message field');
+end;
+
+procedure TTestSender.sendRichMessageWithButtonsAndEdit;
+var
+  aRich, aEdited: TInputRichMessage;
+  aBlock: TInputRichBlockButtons;
+  aMessageID: Int64;
+begin
+  aRich:=TInputRichMessage.CreateFromMarkdown('Rich message with a button row');
+  try
+    aBlock:=aRich.AddButtonsBlock;
+    aBlock.Buttons.AddCallbackButton('Rich callback', 'rich-cb-data');
+    aBlock.Buttons.AddButton('Rich link', 'https://github.com/Al-Muhandis/fp-telegram');
+    if not Bot.sendRichMessage(ChatID, aRich) then
+      Fail('Connection error. See log');
+  finally
+    aRich.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  { edit the sent message with another rich message (the rich_message parameter of editMessageText) }
+  aEdited:=TInputRichMessage.CreateFromMarkdown('Edited *rich* text');
+  try
+    if not Bot.editMessageTextRich(aEdited, ChatID, aMessageID) then
+      Fail('Connection error. See log');
+  finally
+    aEdited.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.sendPersistentKeyboard;
+var
+  aReplyMarkup: TReplyMarkup;
+  aButtons: TKeyboardButtons;
+begin
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aButtons:=aReplyMarkup.CreateReplyKeyboard.Add;
+    aButtons.AddButton('Persistent button');
+    aReplyMarkup.IsPersistent:=True;
+    aReplyMarkup.ResizeKeyboard:=True;
+    aReplyMarkup.InputFieldPlaceholder:='Type or press the button...';
+    if not Bot.sendMessage(ChatID, Format(Msg, [Self.ClassName, TestName]), pmDefault,
+      False, aReplyMarkup) then
+      Fail('Connection error. See log');
+  finally
+    aReplyMarkup.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  { clean up: remove the persistent keyboard }
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aReplyMarkup.RemoveKeyboard:=True;
+    Bot.sendMessage(ChatID, 'Keyboard removed', pmDefault, False, aReplyMarkup);
+  finally
+    aReplyMarkup.Free;
+  end;
+end;
+
+procedure TTestSender.sendChatActionTyping;
+begin
+  if not Bot.sendChatAction(ChatID, caTyping) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.pinAndUnpinMessage;
+var
+  aMessageID: Int64;
+begin
+  if not Bot.sendMessage(ChatID, 'Message to pin. Test: '+TestName) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  if not Bot.pinChatMessage(ChatID, aMessageID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  if not Bot.unpinChatMessage(ChatID, aMessageID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.getUserProfilePhotosTest;
+begin
+  { the user may have no photos: an empty result is still a success }
+  if not Bot.getUserProfilePhotos(UserID) then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.editMessageCaptionTest;
+var
+  aMessageID: Int64;
+begin
+  if not Bot.sendPhoto(ChatID, PhotoUrl, 'Caption before editing') then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  if not Bot.editMessageCaption(ChatID, aMessageID, 'Caption after editing') then
+    Fail('Connection error. See log');
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.sendInlineCopyTextButton;
+var
+  aReplyMarkup: TReplyMarkup;
+  aButton: TInlineKeyboardButton;
+begin
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aButton:=TInlineKeyboardButton.Create('Copy the answer');
+    aButton.copy_text:=TCopyTextButton.Create('42');
+    aReplyMarkup.CreateInlineKeyBoard.AddButton(aButton);
+    if not Bot.sendMessage(ChatID, Format(Msg, [Self.ClassName, TestName]), pmDefault,
+      False, aReplyMarkup) then
+      Fail('Connection error. See log');
+  finally
+    aReplyMarkup.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
 initialization
   { Integration tests require a configured bot: register them only in this case.
-    Otherwise (for example, in CI) only the unit tests are run }
+    Otherwise (for example, in CI) only the unit tests are run.
+    The manual tests additionally require a human interaction during the run
+    (a message sent to the bot, a test payment) or a private chat started with
+    the bot, so they are registered only when [Manual] Enable=1 is set }
   if TTestTelegramClass.Configured then
-    RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender, TTestReceiveLongPolling,
-      TTestPayments]);
+  begin
+    RegisterTests([TTestSender, TTestSenderProcedure, TTestProxySender]);
+    if TTestTelegramClass.ManualEnabled then
+      RegisterTests([TTestSenderManual, TTestReceiveLongPolling, TTestPayments]);
+  end;
 
 end.

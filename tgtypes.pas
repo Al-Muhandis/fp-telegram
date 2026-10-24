@@ -34,6 +34,7 @@ type
   TTelegramDocument = class;
   TTelegramReactionType = class;
   TTelegramReactionCount = class;
+  TTelegramRichMessage = class;
   TTelegramMessageReactionUpdated = class;
   TTelegramMessageReactionCountUpdated = class;
 
@@ -129,6 +130,7 @@ type
     FPhoto: TTelegramPhotoSizeList;
     FReplyToMessage: TTelegramMessageObj;
     FQuote: TTelegramTextQuote;
+    FRichMessage: TTelegramRichMessage;
     FSuccessfulPayment: TTelegramSuccessfulPayment;
     FViaBot: TTelegramUserObj;
     FVideo: TTelegramVideo;
@@ -151,6 +153,8 @@ type
     property ChatId: Int64 read fChatId;
     property ReplyToMessage: TTelegramMessageObj read FReplyToMessage;
     property Quote: TTelegramTextQuote read FQuote;
+    { Rich formatted message (Bot API 10.1+) }
+    property RichMessage: TTelegramRichMessage read FRichMessage;
     property Text: string read fText;
     property Entities: TTelegramUpdateObjList read fEntities;
     property Document: TTelegramDocument read FDocument;
@@ -173,6 +177,28 @@ type
   TTelegramExternalReplyInfo = class(TTelegramObj)
   public
     constructor Create(JSONObject: TJSONObject); override;
+  end;
+
+  { TTelegramRichMessage }
+  { A received rich formatted message (Bot API 10.1+): a list of blocks.
+    The complete raw JSON is available via AsString }
+
+  TTelegramRichMessage = class(TTelegramObj)
+  private
+    FIsRTL: Boolean;
+  public
+    constructor Create(JSONObject: TJSONObject); override;
+    function BlockCount: Integer;
+    { Raw block object by index (0-based); Nil when the index is out of range.
+      The block type is in its "type" member }
+    function Block(AIndex: Integer): TJSONObject;
+    { Returns a newly created array with the clones of all RichMessageButton
+      objects of the buttons blocks; free it after use. Nil if there are no buttons }
+    function ExtractButtons: TJSONArray;
+    { Plain text of the whole message: the text of all RichText trees of the
+      blocks (the "text" and "caption" members) without any formatting }
+    function PlainText: String;
+    property IsRTL: Boolean read FIsRTL;
   end;
 
   { TTelegramTextQuote }
@@ -1512,6 +1538,9 @@ begin
   FQuote:=TTelegramTextQuote.CreateFromJSONObject(fJSON.Find('quote', jtObject) as TJSONObject)
     as TTelegramTextQuote;
 
+  FRichMessage:=TTelegramRichMessage.CreateFromJSONObject(
+    fJSON.Find('rich_message', jtObject) as TJSONObject) as TTelegramRichMessage;
+
   lJSONArray := fJSON.Find('entities', jtArray) as TJSONArray;
   if Assigned(lJSONArray) then
     for lJSONEnum in lJSONArray do
@@ -1542,6 +1571,7 @@ begin
   FChat.Free;
   FReplyToMessage.Free;
   FQuote.Free;
+  FRichMessage.Free;
   FPhoto.Free;
   FDocument.Free;
   FExternalReply.Free;
@@ -1582,6 +1612,127 @@ destructor TTelegramTextQuote.Destroy;
 begin
   FEntities.Free;
   inherited Destroy;
+end;
+
+{ RichText nodes can be a plain string, an array of nodes or an object
+  with the nested nodes in the "text" member }
+
+procedure AppendRichTextPlain(ANode: TJSONData; var AText: String);
+var
+  lEnum: TJSONEnum;
+  lObj: TJSONObject;
+begin
+  if not Assigned(ANode) then
+    Exit;
+  case ANode.JSONType of
+    jtString:
+      begin
+        if AText<>EmptyStr then
+          AText+=LineEnding;
+        AText+=ANode.AsString;
+      end;
+    jtArray:
+      for lEnum in (ANode as TJSONArray) do
+        AppendRichTextPlain(lEnum.Value, AText);
+    jtObject:
+      begin
+        lObj:=ANode as TJSONObject;
+        if lObj.Find('text')<>nil then
+          AppendRichTextPlain(lObj.Find('text'), AText)
+        else if lObj.Find('children', jtArray)<>nil then
+          AppendRichTextPlain(lObj.Find('children', jtArray), AText);
+      end;
+  end;
+end;
+
+procedure AppendBlockPlain(ABlock: TJSONObject; var AText: String);
+var
+  lEnum: TJSONEnum;
+begin
+  if not Assigned(ABlock) then
+    Exit;
+  if ABlock.Find('text')<>nil then
+    AppendRichTextPlain(ABlock.Find('text'), AText)
+  else if ABlock.Find('caption')<>nil then
+    AppendRichTextPlain(ABlock.Find('caption'), AText);
+  { containers: lists, quotations, details, tables, collages and so on }
+  if ABlock.Find('items', jtArray)<>nil then
+    for lEnum in (ABlock.Find('items', jtArray) as TJSONArray) do
+      if lEnum.Value.JSONType=jtObject then
+        AppendBlockPlain(lEnum.Value as TJSONObject, AText);
+  if ABlock.Find('blocks', jtArray)<>nil then
+    for lEnum in (ABlock.Find('blocks', jtArray) as TJSONArray) do
+      if lEnum.Value.JSONType=jtObject then
+        AppendBlockPlain(lEnum.Value as TJSONObject, AText);
+end;
+
+{ TTelegramRichMessage }
+
+constructor TTelegramRichMessage.Create(JSONObject: TJSONObject);
+begin
+  inherited Create(JSONObject);
+  FIsRTL:=fJSON.Get('is_rtl', False);
+end;
+
+function TTelegramRichMessage.BlockCount: Integer;
+var
+  lJSONArray: TJSONArray;
+begin
+  Result:=0;
+  lJSONArray:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) then
+    Result:=lJSONArray.Count;
+end;
+
+function TTelegramRichMessage.Block(AIndex: Integer): TJSONObject;
+var
+  lJSONArray: TJSONArray;
+begin
+  Result:=nil;
+  lJSONArray:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if Assigned(lJSONArray) and (AIndex>=0) and (AIndex<lJSONArray.Count) then
+    Result:=lJSONArray.Objects[AIndex];
+end;
+
+function TTelegramRichMessage.ExtractButtons: TJSONArray;
+var
+  lBlocks, lButtons: TJSONArray;
+  lBlockEnum, lBtnEnum: TJSONEnum;
+begin
+  Result:=nil;
+  lBlocks:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if not Assigned(lBlocks) then
+    Exit;
+  for lBlockEnum in lBlocks do
+  begin
+    if lBlockEnum.Value.JSONType<>jtObject then
+      continue;
+    if (lBlockEnum.Value as TJSONObject).Get('type', EmptyStr)='buttons' then
+    begin
+      lButtons:=(lBlockEnum.Value as TJSONObject).Find('buttons', jtArray) as TJSONArray;
+      if Assigned(lButtons) then
+      begin
+        if not Assigned(Result) then
+          Result:=TJSONArray.Create;
+        for lBtnEnum in lButtons do
+          Result.Add(lBtnEnum.Value.Clone);
+      end;
+    end;
+  end;
+end;
+
+function TTelegramRichMessage.PlainText: String;
+var
+  lBlocks: TJSONArray;
+  lBlockEnum: TJSONEnum;
+begin
+  Result:=EmptyStr;
+  lBlocks:=fJSON.Find('blocks', jtArray) as TJSONArray;
+  if not Assigned(lBlocks) then
+    Exit;
+  for lBlockEnum in lBlocks do
+    if lBlockEnum.Value.JSONType=jtObject then
+      AppendBlockPlain(lBlockEnum.Value as TJSONObject, Result);
 end;
 
 function TTelegramMessageObj.ContentFromMessage(out aText: String; out aMedia: String): TContentType;

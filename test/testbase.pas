@@ -43,6 +43,9 @@ type
     { True when testtelegram.ini contains both the bot token and the chat ID.
       Integration tests must be registered only if it is True }
     class function Configured: Boolean;
+    { True when [Manual] Enable=1 is set in testtelegram.ini: additional tests
+      that need a human interaction during the run are registered then }
+    class function ManualEnabled: Boolean;
   end;
 
 implementation
@@ -69,9 +72,28 @@ begin
   end;
 end;
 
+class function TTestTelegramClass.ManualEnabled: Boolean;
+var
+  lConf: TMemIniFile;
+begin
+  Result:=False;
+  if not FileExists('testtelegram.ini') then
+    Exit;
+  lConf:=TMemIniFile.Create('testtelegram.ini');
+  try
+    Result:=lConf.ReadInteger('Manual', 'Enable', 0)<>0;
+  finally
+    lConf.Free;
+  end;
+end;
+
 procedure TTestTelegramClass.SetUp;
 begin
   inherited SetUp;
+  { Telegram limits the message rate per chat (~20/min). The integration suite
+    sends many messages to the same chat in a row, so keep a pause between the
+    tests to avoid 429 Too Many Requests responses }
+  TThread.Sleep(3200);
   FBot:=TTelegramSender.Create(FConf.ReadString('Bot', 'Token', EmptyStr));
   FBot.Logger:=TEventLog.Create(nil);
   FBot.LogDebug:=True;
