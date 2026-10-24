@@ -63,6 +63,10 @@ type
     procedure setMyCommands;
     procedure editMessageMediaStream;
     procedure getChatAdministators;
+    procedure sendRichMessageMarkdown;
+    procedure sendRichMessageWithButtonsAndEdit;
+    procedure sendPersistentKeyboard;
+    procedure sendInlineCopyTextButton;
   end;
 
   { TTestProxySender }
@@ -615,6 +619,114 @@ begin
   Bot.getChatAdministrators(ChatID, aAdministrators);
   SaveJSONData(Bot.JSONResponse, '~responce.json');
   aAdministrators.Free;
+end;
+
+{ TTestSender: rich messages (Bot API 10.1+) }
+
+procedure TTestSender.sendRichMessageMarkdown;
+var
+  aRich: TInputRichMessage;
+begin
+  aRich:=TInputRichMessage.CreateFromMarkdown('# Rich heading' + LineEnding +
+    'Sent by *fp-telegram* unit test `' + TestName + '`');
+  try
+    if not Bot.sendRichMessage(ChatID, aRich) then
+      Fail('Connection error. See log');
+  finally
+    aRich.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  SaveJSONData(Bot.JSONResponse, '~richmessage.json');
+  if Assigned(Bot.JSONResponse) then
+    if (Bot.JSONResponse as TJSONObject).Find('rich_message', jtObject)=nil then
+      Fail('The sent message must contain the rich_message field');
+end;
+
+procedure TTestSender.sendRichMessageWithButtonsAndEdit;
+var
+  aRich, aEdited: TInputRichMessage;
+  aBlock: TInputRichBlockButtons;
+  aMessageID: Int64;
+begin
+  aRich:=TInputRichMessage.CreateFromMarkdown('Rich message with a button row');
+  try
+    aBlock:=aRich.AddButtonsBlock;
+    aBlock.Buttons.AddCallbackButton('Rich callback', 'rich-cb-data');
+    aBlock.Buttons.AddButton('Rich link', 'https://github.com/Al-Muhandis/fp-telegram');
+    if not Bot.sendRichMessage(ChatID, aRich) then
+      Fail('Connection error. See log');
+  finally
+    aRich.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  aMessageID:=(Bot.JSONResponse as TJSONObject).Int64s['message_id'];
+  { edit the sent message with another rich message (the rich_message parameter of editMessageText) }
+  aEdited:=TInputRichMessage.CreateFromMarkdown('Edited *rich* text');
+  try
+    if not Bot.editMessageTextRich(aEdited, ChatID, aMessageID) then
+      Fail('Connection error. See log');
+  finally
+    aEdited.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+end;
+
+procedure TTestSender.sendPersistentKeyboard;
+var
+  aReplyMarkup: TReplyMarkup;
+  aButtons: TKeyboardButtons;
+begin
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aButtons:=aReplyMarkup.CreateReplyKeyboard.Add;
+    aButtons.AddButton('Persistent button');
+    aReplyMarkup.IsPersistent:=True;
+    aReplyMarkup.ResizeKeyboard:=True;
+    aReplyMarkup.InputFieldPlaceholder:='Type or press the button...';
+    if not Bot.sendMessage(ChatID, Format(Msg, [Self.ClassName, TestName]), pmDefault,
+      False, aReplyMarkup) then
+      Fail('Connection error. See log');
+  finally
+    aReplyMarkup.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
+  { clean up: remove the persistent keyboard }
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aReplyMarkup.RemoveKeyboard:=True;
+    Bot.sendMessage(ChatID, 'Keyboard removed', pmDefault, False, aReplyMarkup);
+  finally
+    aReplyMarkup.Free;
+  end;
+end;
+
+procedure TTestSender.sendInlineCopyTextButton;
+var
+  aReplyMarkup: TReplyMarkup;
+  aButton: TInlineKeyboardButton;
+begin
+  aReplyMarkup:=TReplyMarkup.Create;
+  try
+    aButton:=TInlineKeyboardButton.Create('Copy the answer');
+    aButton.copy_text:=TCopyTextButton.Create('42');
+    aReplyMarkup.CreateInlineKeyBoard.AddButton(aButton);
+    if not Bot.sendMessage(ChatID, Format(Msg, [Self.ClassName, TestName]), pmDefault,
+      False, aReplyMarkup) then
+      Fail('Connection error. See log');
+  finally
+    aReplyMarkup.Free;
+  end;
+  if Bot.LastErrorCode<>0 then
+    Fail('Error from telegram API server. Error code: '+IntToStr(Bot.LastErrorCode)+
+      '. Description: '+Bot.LastErrorDescription);
 end;
 
 initialization
